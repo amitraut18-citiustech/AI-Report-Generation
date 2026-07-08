@@ -1,0 +1,77 @@
+{
+  "database": "HealthcareDB",
+  "generated": "2026-07-08T10:00:00Z",
+  "tables": [
+    {
+      "name": "Patients",
+      "description": "Active and inactive recipients of care",
+      "reportable": true,
+      "columns": [
+        { "name": "Id", "type": "INT", "description": "Primary key", "phi": false },
+        { "name": "FirstName", "type": "NVARCHAR(100)", "description": "Patient first name", "phi": true },
+        { "name": "LastName", "type": "NVARCHAR(100)", "description": "Patient last name", "phi": true },
+        { "name": "DateOfBirth", "type": "DATE", "description": "Patient date of birth", "phi": true },
+        { "name": "Gender", "type": "NVARCHAR(20)", "description": "Patient gender", "phi": false },
+        { "name": "BloodType", "type": "NVARCHAR(10)", "description": "ABO/Rh blood type", "phi": false },
+        { "name": "MRN", "type": "NVARCHAR(20)", "description": "Medical Record Number — unique patient identifier", "phi": true },
+        { "name": "SSN", "type": "NVARCHAR(11)", "description": "Social Security Number", "phi": true },
+        { "name": "Address", "type": "NVARCHAR(200)", "description": "Street address", "phi": true },
+        { "name": "City", "type": "NVARCHAR(100)", "description": "City of residence", "phi": true },
+        { "name": "State", "type": "NVARCHAR(2)", "description": "State code", "phi": false },
+        { "name": "Status", "type": "NVARCHAR(20)", "description": "Active or Inactive", "phi": false },
+        { "name": "FacilityId", "type": "INT", "description": "Foreign key to Facilities", "phi": false },
+        { "name": "CreatedDate", "type": "DATETIME", "description": "Record creation timestamp", "phi": false }
+      ],
+      "relationships": [
+        { "column": "FacilityId", "references": "Facilities.Id", "type": "many-to-one" }
+      ]
+    },
+    {
+      "name": "Facilities",
+      "description": "Healthcare facilities / care sites",
+      "reportable": true,
+      "columns": [
+        { "name": "Id", "type": "INT", "description": "Primary key", "phi": false },
+        { "name": "FacilityName", "type": "NVARCHAR(200)", "description": "Facility display name", "phi": false },
+        { "name": "City", "type": "NVARCHAR(100)", "description": "Facility city", "phi": false },
+        { "name": "State", "type": "NVARCHAR(2)", "description": "Facility state code", "phi": false },
+        { "name": "Status", "type": "NVARCHAR(20)", "description": "Active or Inactive", "phi": false }
+      ],
+      "relationships": []
+    },
+    {
+      "name": "Encounters",
+      "description": "Patient visits and clinical encounters",
+      "reportable": true,
+      "columns": [
+        { "name": "Id", "type": "INT", "description": "Primary key", "phi": false },
+        { "name": "PatientId", "type": "INT", "description": "Foreign key to Patients", "phi": false },
+        { "name": "EncounterType", "type": "NVARCHAR(50)", "description": "Type of encounter (Inpatient, Outpatient, Emergency, etc.)", "phi": false },
+        { "name": "EncounterDate", "type": "DATE", "description": "Date of the encounter", "phi": false },
+        { "name": "ProviderId", "type": "INT", "description": "Foreign key to Providers", "phi": false },
+        { "name": "Status", "type": "NVARCHAR(20)", "description": "Encounter status (Completed, Scheduled, Cancelled)", "phi": false },
+        { "name": "Notes", "type": "NVARCHAR(MAX)", "description": "Clinical notes — free text", "phi": true }
+      ],
+      "relationships": [
+        { "column": "PatientId", "references": "Patients.Id", "type": "many-to-one" },
+        { "column": "ProviderId", "references": "Providers.Id", "type": "many-to-one" }
+      ]
+    },
+    {
+      "name": "Providers",
+      "description": "Physicians and clinical staff who see patients",
+      "reportable": true,
+      "columns": [
+        { "name": "Id", "type": "INT", "description": "Primary key", "phi": false },
+        { "name": "FirstName", "type": "NVARCHAR(100)", "description": "Provider first name", "phi": false },
+        { "name": "LastName", "type": "NVARCHAR(100)", "description": "Provider last name", "phi": false },
+        { "name": "Specialty", "type": "NVARCHAR(100)", "description": "Medical specialty", "phi": false },
+        { "name": "FacilityId", "type": "INT", "description": "Foreign key to Facilities", "phi": false }
+      ],
+      "relationships": [
+        { "column": "FacilityId", "references": "Facilities.Id", "type": "many-to-one" }
+      ]
+    }
+  ],
+  "_notes": "Sample schema for PoC development. Replace with production schema mapping once Phase 1c runs against the real database."
+}

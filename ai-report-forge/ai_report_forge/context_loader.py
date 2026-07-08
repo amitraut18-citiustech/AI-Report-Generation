@@ -1,0 +1,152 @@
+import json
+import logging
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from .config import settings
+
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class ReportEntry:
+    report_key: str
+    title: str
+    thought_content: str
+    template_file: str
+    fields: list[dict]
+    parameters: list[dict]
+
+
+@dataclass
+class SchemaContext:
+    raw: dict = field(default_factory=dict)
+    tables: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class PhiMarkers:
+    raw: dict = field(default_factory=dict)
+    columns: list[dict] = field(default_factory=list)
+
+    def strategies_for_table(self, table: str) -> dict[str, str]:
+        return {
+            c["column"]: c["strategy"]
+            for c in self.columns
+            if c["table"] == table
+        }
+
+
+@dataclass
+class AppContext:
+    reports: dict[str, ReportEntry] = field(default_factory=dict)
+    schema: SchemaContext = field(default_factory=SchemaContext)
+    phi: PhiMarkers = field(default_factory=PhiMarkers)
+
+    def report_summaries_text(self) -> str:
+        lines = []
+        for key, entry in self.reports.items():
+            lines.append(f"- **{key}** ({entry.title}): template={entry.template_file}")
+        return "\n".join(lines) if lines else "(no reports loaded)"
+
+    def schema_text(self) -> str:
+        if not self.schema.tables:
+            return "(no schema loaded)"
+        parts = []
+        for t in self.schema.tables:
+            if not t.get("reportable", True):
+                continue
+            cols = ", ".join(c["name"] for c in t.get("columns", []))
+            parts.append(f"- {t['name']}: {t.get('description', '')} — columns: {cols}")
+        return "\n".join(parts)
+
+
+_KEY_RE = re.compile(r"\*\*Report key:\*\*\s*(\S+)")
+_TITLE_RE = re.compile(r"^#\s+Report Thought:\s*(.+)", re.MULTILINE)
+
+
+def _parse_thought_file(path: Path) -> ReportEntry | None:
+    text = path.read_text(encoding="utf-8")
+
+    key_match = _KEY_RE.search(text)
+    report_key = key_match.group(1) if key_match else path.stem.replace(".thought", "")
+
+    title_match = _TITLE_RE.search(text)
+    title = title_match.group(1).strip() if title_match else report_key
+
+    template_file = f"{report_key}.html"
+
+    fields = _extract_table_rows(text, "Fields")
+    parameters = _extract_table_rows(text, "Parameters")
+
+    return ReportEntry(
+        report_key=report_key,
+        title=title,
+        thought_content=text,
+        template_file=template_file,
+        fields=fields,
+        parameters=parameters,
+    )
+
+
+def _extract_table_rows(text: str, section_header: str) -> list[dict]:
+    pattern = re.compile(
+        rf"\|\s*{section_header}\b.*?\n"
+        r"(\|.*\n)*",
+        re.IGNORECASE,
+    )
+    rows = []
+    in_section = False
+    headers = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not in_section:
+            if stripped.startswith("|") and section_header.lower() in stripped.lower():
+                cells = [c.strip() for c in stripped.split("|")[1:-1]]
+                headers = cells
+                in_section = True
+            continue
+        if stripped.startswith("|"):
+            if all(c.strip().replace("-", "") == "" for c in stripped.split("|")[1:-1]):
+                continue
+            cells = [c.strip() for c in stripped.split("|")[1:-1]]
+            if len(cells) == len(headers):
+                rows.append(dict(zip(headers, cells)))
+            else:
+                rows.append({"raw": stripped})
+        else:
+            break
+    return rows
+
+
+def load_context() -> AppContext:
+    ctx = AppContext()
+
+    thoughts_dir = settings.report_thoughts_path
+    if thoughts_dir.is_dir():
+        for path in sorted(thoughts_dir.glob("*.thought.md")):
+            entry = _parse_thought_file(path)
+            if entry:
+                ctx.reports[entry.report_key] = entry
+                log.info("Loaded report thought: %s", entry.report_key)
+    else:
+        log.warning("ReportThoughts directory not found: %s", thoughts_dir)
+
+    schema_path = settings.schema_mapping_path
+    if schema_path.is_file():
+        data = json.loads(schema_path.read_text(encoding="utf-8"))
+        ctx.schema = SchemaContext(raw=data, tables=data.get("tables", []))
+        log.info("Loaded schema mapping: %d tables", len(ctx.schema.tables))
+    else:
+        log.warning("Schema mapping not found: %s", schema_path)
+
+    phi_path = settings.phi_markers_path
+    if phi_path.is_file():
+        data = json.loads(phi_path.read_text(encoding="utf-8"))
+        ctx.phi = PhiMarkers(raw=data, columns=data.get("phiColumns", []))
+        log.info("Loaded PHI markers: %d columns", len(ctx.phi.columns))
+    else:
+        log.warning("PHI markers not found: %s", phi_path)
+
+    return ctx
