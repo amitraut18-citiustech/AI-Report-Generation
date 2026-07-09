@@ -5,6 +5,10 @@
 
 <h2 class="mb-4">Transplant Event Report</h2>
 
+<div class="alert alert-info">
+    Total Transplants: @Model.Count()
+</div>
+
 <table class="table table-striped table-bordered">
     <thead class="table-dark">
         <tr>
@@ -14,6 +18,8 @@
             <th>Transplant Date</th>
             <th>Infusion Date</th>
             <th>Event ID</th>
+            <th>Transplant Number</th>
+            <th>Total Transplants</th>
             <th>Inpatient</th>
         </tr>
     </thead>
@@ -27,6 +33,8 @@
                 <td>@item.TransplantDate.ToShortDateString()</td>
                 <td>@item.InfusionDate.ToShortDateString()</td>
                 <td>@item.EventId</td>
+                <td>@item.TransplantNumber</td>
+                <td>@Model.Count()</td>
                 <td>@item.IsInpatient</td>
             </tr>
         }

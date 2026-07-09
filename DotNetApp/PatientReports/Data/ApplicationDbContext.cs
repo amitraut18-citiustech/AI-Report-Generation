@@ -29,6 +29,7 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasKey(t => t.Id);
             entity.Property(t => t.EventId).IsRequired().HasMaxLength(50);
+            entity.Property(t => t.TransplantNumber).HasMaxLength(50);
             entity.HasOne(t => t.Patient)
                 .WithMany(p => p.TransplantEvents)
                 .HasForeignKey(t => t.PatientId)

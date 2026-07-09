@@ -44,6 +44,7 @@ public class PatientDataService
                 TransplantDate = e.TransplantDate,
                 InfusionDate = e.InfusionDate,
                 EventId = e.EventId,
+                TransplantNumber = e.TransplantNumber,
                 IsInpatient = e.IsInpatient ? "Yes" : "No"
             })
             .OrderBy(e => e.DateOfVisit)

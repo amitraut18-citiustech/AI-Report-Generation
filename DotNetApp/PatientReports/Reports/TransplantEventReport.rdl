@@ -26,6 +26,7 @@
             <TablixColumn><Width>1in</Width></TablixColumn>
             <TablixColumn><Width>1in</Width></TablixColumn>
             <TablixColumn><Width>1in</Width></TablixColumn>
+            <TablixColumn><Width>1in</Width></TablixColumn>
             <TablixColumn><Width>0.6in</Width></TablixColumn>
           </TablixColumns>
           <TablixRows>
@@ -38,6 +39,8 @@
                 <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Transplant Date</Value></Textbox></CellContents></TablixCell>
                 <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Infusion Date</Value></Textbox></CellContents></TablixCell>
                 <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Event ID</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Transplant Number</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Total Transplants</Value></Textbox></CellContents></TablixCell>
                 <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Inpatient</Value></Textbox></CellContents></TablixCell>
               </TablixCells>
             </TablixRow>
@@ -45,6 +48,8 @@
         </TablixBody>
         <TablixColumnHierarchy>
           <TablixMembers>
+            <TablixMember />
+            <TablixMember />
             <TablixMember />
             <TablixMember />
             <TablixMember />

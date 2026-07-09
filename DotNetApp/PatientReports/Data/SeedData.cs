@@ -10,6 +10,7 @@ public static class SeedData
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        await context.Database.EnsureDeletedAsync();
         await context.Database.EnsureCreatedAsync();
 
         if (await context.Patients.AnyAsync())
@@ -51,6 +52,7 @@ public static class SeedData
                 TransplantDate = new DateTime(2025, 11, 20),
                 InfusionDate = new DateTime(2025, 11, 22),
                 EventId = "EVT-1001",
+                TransplantNumber = "TX-1001",
                 IsInpatient = true
             },
             new TransplantEvent
@@ -61,6 +63,7 @@ public static class SeedData
                 TransplantDate = new DateTime(2025, 10, 18),
                 InfusionDate = new DateTime(2025, 10, 19),
                 EventId = "EVT-2002",
+                TransplantNumber = "TX-2002",
                 IsInpatient = false
             });
 

@@ -6,8 +6,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+var dbPath = Path.Combine(builder.Environment.ContentRootPath, "db", "PatientDB.db");
+Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("PatientDb") ?? "Data Source=db/PatientDB.db"));
+    options.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddScoped<PatientDataService>();
 
 var app = builder.Build();

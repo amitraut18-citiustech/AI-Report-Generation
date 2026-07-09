@@ -4,6 +4,11 @@ Bin/
 obj/
 Obj/
 out/
+**/bin/**
+**/obj/**
+*.dll
+*.exe
+*.pdb
 
 ## User-specific files
 .vs/
