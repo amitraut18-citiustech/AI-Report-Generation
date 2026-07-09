@@ -1,0 +1,29 @@
+## Build output
+bin/
+Bin/
+obj/
+Obj/
+out/
+
+## User-specific files
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## ASP.NET Core
+appsettings.Development.json
+
+## SQLite / local data
+*.db
+*.db-shm
+*.db-wal
+
+## Logs
+*.log
+
+## OS files
+.DS_Store
+Thumbs.db
