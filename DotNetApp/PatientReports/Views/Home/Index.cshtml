@@ -1,0 +1,24 @@
+﻿@{
+    ViewData["Title"] = "Home";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Patient Reports</h1>
+    <p class="lead">View patient and transplant event reports from the SQLite database.</p>
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card p-3">
+                <h4>Patient Report</h4>
+                <p>Displays patient profile details stored in the database.</p>
+                <a class="btn btn-primary" asp-controller="Reports" asp-action="PatientReport">Open Patient Report</a>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card p-3">
+                <h4>Transplant Event Report</h4>
+                <p>Displays transplant visitation and event details.</p>
+                <a class="btn btn-outline-primary" asp-controller="Reports" asp-action="TransplantEventReport">Open Event Report</a>
+            </div>
+        </div>
+    </div>
+</div>

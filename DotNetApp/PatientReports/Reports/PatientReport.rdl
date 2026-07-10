@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2008/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">
+  <Body>
+    <ReportItems>
+      <Textbox Name="Title">
+        <CanGrow>true</CanGrow>
+        <Height>0.6in</Height>
+        <Width>7in</Width>
+        <Value>Patient Report</Value>
+        <Style>
+          <FontSize>16pt</FontSize>
+          <FontWeight>Bold</FontWeight>
+          <TextAlign>Center</TextAlign>
+        </Style>
+      </Textbox>
+      <Tablix Name="PatientTable">
+        <Height>1.2in</Height>
+        <Width>7in</Width>
+        <Top>0.7in</Top>
+        <Left>0in</Left>
+        <TablixBody>
+          <TablixColumns>
+            <TablixColumn><Width>1in</Width></TablixColumn>
+            <TablixColumn><Width>1in</Width></TablixColumn>
+            <TablixColumn><Width>0.8in</Width></TablixColumn>
+            <TablixColumn><Width>1in</Width></TablixColumn>
+            <TablixColumn><Width>1.2in</Width></TablixColumn>
+            <TablixColumn><Width>1.5in</Width></TablixColumn>
+            <TablixColumn><Width>0.5in</Width></TablixColumn>
+          </TablixColumns>
+          <TablixRows>
+            <TablixRow>
+              <Height>0.3in</Height>
+              <TablixCells>
+                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>First Name</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Last Name</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Gender</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Date of Birth</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Contact Number</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Email</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Phone</Value></Textbox></CellContents></TablixCell>
+              </TablixCells>
+            </TablixRow>
+          </TablixRows>
+        </TablixBody>
+        <TablixColumnHierarchy>
+          <TablixMembers>
+            <TablixMember />
+            <TablixMember />
+            <TablixMember />
+            <TablixMember />
+            <TablixMember />
+            <TablixMember />
+            <TablixMember />
+          </TablixMembers>
+        </TablixColumnHierarchy>
+        <TablixRowHierarchy>
+          <TablixMembers>
+            <TablixMember>
+              <KeepWithGroup>After</KeepWithGroup>
+              <RepeatOnNewPage>true</RepeatOnNewPage>
+            </TablixMember>
+          </TablixMembers>
+        </TablixRowHierarchy>
+        <RepeatColumnHeaders>true</RepeatColumnHeaders>
+        <RepeatRowHeaders>true</RepeatRowHeaders>
+      </Tablix>
+    </ReportItems>
+  </Body>
+  <Width>7.5in</Width>
+  <Page>
+    <PageHeader>
+      <Height>0.5in</Height>
+      <PrintOnFirstPage>true</PrintOnFirstPage>
+      <PrintOnLastPage>true</PrintOnLastPage>
+    </PageHeader>
+  </Page>
+  <AutoRefresh>0</AutoRefresh>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>0d9d08df-5c4d-4f0b-82f1-392209ce5f72</rd:ReportID>
+</Report>
