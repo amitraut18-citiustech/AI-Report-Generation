@@ -13,30 +13,46 @@ locate sections reliably. Fill every section; if a section does not apply, write
 **Report key:** <report_key>
 
 ## Source
-- **Type:** SSRS (.rdl) | Crystal (.rpt via .md)
-- **File:** <relative/path/to/source>
-- **Description:** <the report's own <Description>, or a one-line summary>
+- **Legacy format:** .NET MVC (RDL + Razor) | SSRS (.rdl) | Crystal (.rpt via .md)
+- **Description:** <one-line summary of what the report shows>
+- **Source files:**
+  | Role | File |
+  |------|------|
+  | Controller action | Controllers/ReportsController.cs → <Action>() |
+  | Data service | DataServices/<Service>.cs → <Method>() |
+  | ViewModel | Models/<Name>ReportViewModel.cs |
+  | EF entities | Models/<Entity>.cs |
+  | DbContext | Data/ApplicationDbContext.cs |
+  | Razor view | Views/Reports/<Name>.cshtml |
+  | RDL (layout hint) | Reports/<Name>.rdl <"(skeletal)" if no dataset/fields> |
 
 ## Database Context
-- **Data Source:** <name> (<"fed DataSet — CommandText Not Used" | connection info>)
-- **Dataset(s):** <DataSet name(s)>
-- **Fields:**
-  | Field | Type | Meaning |
-  |-------|------|---------|
-  | MRN | System.String | Medical Record Number (identifier) |
-  | ... | ... | ... |
-- **Inferred entities/tables:** <tables the fields imply, marked "inferred">
-- **Relationships:** <FK relationships if determinable, else _None._>
+- **Provider:** <EF Core + SQLite | SQL Server | ...>
+- **Entities/tables used:** <e.g. Patients; TransplantEvents (Include Patient)>
+- **Fields (from the ViewModel — authoritative):**
+  | Field | .NET type | Direct / derived | Meaning |
+  |-------|-----------|------------------|---------|
+  | LastName | string | direct (Patients.LastName) | Patient last name |
+  | PatientName | string | derived (`FirstName + " " + LastName`) | Full name |
+  | IsInpatient | string | derived (`bool ? "Yes" : "No"`) | Inpatient flag as text |
+  | ... | ... | ... | ... |
+- **Relationships:** <FK relationships from DbContext, e.g. TransplantEvents.PatientId → Patients.Id (many-to-one)>
 
-## Queries
-- **Main Query:** <the real SQL if present; otherwise:>
-  _No embedded SQL — dataset is fed by the .NET app. Expected input shape:_ <describe rows>
+## Data Access
+- **Method:** <Service.Method(), async?>
+- **Query (plain English):** <source DbSet(s), Include/joins, Where filters, OrderBy/ThenBy>
+- **Projection / derived fields:** <each computed field and its exact expression>
+- **Read-only:** <AsNoTracking? yes/no>
+- **Original LINQ (verbatim, for reference):**
+  ```csharp
+  <paste the .Select(...) projection and ordering>
+  ```
 
 ## Business Logic
-- <Decode every non-trivial expression to plain English.>
-- **Example — relative-year columns:** `GF_Transplants_0..3` = graft-failure retransplants
-  for reporting year and the three prior years (`ReportingYear`, `-1`, `-2`, `-3`).
-- **Calculated fields / aggregations:** <Sum/Count/CASE/IIF logic>
+- <Filters, ordering, aggregations/counts (e.g. a `Model.Count()` summary), formatting.>
+- **Derived fields:** <full-name concatenation, bool→Yes/No, etc.>
+- **Legacy RDL expressions (if any):** <decode `=Parameters!X.Value-3`, IIF/CASE, Sum/Count>
+  _None._ if the RDL is a skeletal layout stub.
 
 ## Conditional Logic
 - <Visibility (`Hidden`) expressions, row suppression, conditional formatting.>
@@ -47,17 +63,19 @@ locate sections reliably. Fill every section; if a section does not apply, write
 - **Sorting:** <sort expressions, or _None._>
 
 ## Parameters
+_From controller/action parameters, query-string inputs, or RDL `<ReportParameter>`s.
+If the report currently takes none, write `_None — returns all rows._`_
 | Name | Type | Default | User-facing? | Purpose |
 |------|------|---------|--------------|---------|
 | ReportingYear | Integer | 2026 | yes | Filter: reporting year |
 | dateFormat | String | M/d/yyyy | no | Report chrome |
-| rptUser | String | — | no | Footer: executed-by |
 
 ## Layout
-- **Title:** <text>
-- **Summary / cards:** <e.g. "Number of patients">
-- **Table columns (in order):** <header list>
-- **Header/Footer:** <generated-on expr, page-number expr, filters strip, executed-by>
+- **Title:** <text — from the Razor `<h2>`/RDL title>
+- **Summary / cards:** <e.g. "Total Transplants: {count}", or _None._>
+- **Table columns (in order, with header labels):** <as rendered in the Razor view>
+- **Per-column formatting:** <e.g. dates via ToShortDateString(), bool→Yes/No>
+- **Header/Footer:** <generated-on, executed-by, filters strip, page number — or _None._>
 
 ## Open Questions
 - <Anything ambiguous the reviewer must confirm. "_None._" if fully understood.>
@@ -66,7 +84,12 @@ locate sections reliably. Fill every section; if a section does not apply, write
 ---
 
 ## Notes for the researcher
-- Decode expressions; never leave a raw `=...` in the file uninterpreted.
+- The **ViewModel** is the authoritative source of the Fields table; the **data service**
+  is the authoritative source of query logic and derived fields. The `.rdl` is a layout
+  hint and is frequently skeletal — do not treat an empty RDL as "no fields."
+- Capture derived fields exactly (concatenations, `bool ? "Yes" : "No"`, formatting) — the
+  migrator reproduces them.
 - Distinguish **filter parameters** (change the data) from **chrome parameters**
-  (`rptUser`, `dateFormat`) that only affect display.
-- The **Fields** table drives the migrator's row-object shape — be complete and precise.
+  (`dateFormat`, executed-by) that only affect display.
+- The **Fields** table + **Data Access** section drive the migrator's row-object shape and
+  its transforms — be complete and precise.

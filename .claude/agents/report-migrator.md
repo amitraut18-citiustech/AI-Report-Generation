@@ -23,17 +23,33 @@ thought file is ambiguous or has Open Questions, stop and report that rather tha
 
 ## The runtime data contract (critical)
 
-These templates are **not** live pages. At runtime the .NET app injects a single global
-before the report's JS runs:
+These templates are **not** live pages. At runtime the .NET app runs the report's data
+service, gets a `List<...ReportViewModel>`, and injects it as a single global before the
+report's JS runs:
 
 ```js
 window.REPORT_DATA = {
-  parameters: { /* resolved parameter values, e.g. reportingYear: 2026 */ },
-  rows: [ /* array of row objects, keys = field names from the thought file */ ],
+  parameters: { /* resolved filter params, camelCase, e.g. reportingYear: 2026 */ },
+  rows: [ /* one object per ViewModel row; keys = ViewModel property names, camelCase */ ],
   narrative: "LLM-generated summary text",       // may be empty
   meta: { generatedAt: "ISO-8601", executedBy: "user", rowCount: 0 }
 };
 ```
+
+**`rows` mirrors the ViewModel exactly.** Each row already contains every ViewModel
+property, including **derived fields the data service computed server-side**
+(e.g. `patientName` = first+last, `isInpatient` = `"Yes"`/`"No"`). Do **not** recompute
+those in JS — render them as given. Your JS is responsible only for **view-level**
+concerns the thought file's Layout/Business Logic sections describe:
+- date/number **formatting** (e.g. ISO date → short date, matching the Razor view),
+- **aggregate summaries** the view shows (e.g. `Total Transplants: rows.length`),
+- **ordering/grouping** only if the thought file says the client must do it (usually the
+  data service already ordered — preserve the incoming order by default),
+- conditional formatting / row suppression if specified.
+
+Map ViewModel property names to camelCase keys (`LastName` → `lastName`,
+`PatientName` → `patientName`, `IsInpatient` → `isInpatient`) and document the mapping in
+the `.md`.
 
 Your JS must render **only** from `window.REPORT_DATA`. No `fetch`, no XHR, no external
 scripts, no CDN. If the data is missing, render a clear empty/placeholder state (so the
@@ -42,14 +58,17 @@ template can also be opened standalone for design review).
 ## Procedure
 
 1. **Read the thought file fully.** Map its sections to output:
-   - Fields/data context → the row object shape and table columns.
-   - Business logic/formulas → JS transforms (age grouping, relative-year columns,
-     derived counts). Reproduce the logic exactly as the thought file describes it.
-   - Conditional logic → show/hide, row suppression, conditional formatting in JS.
-   - Grouping/sorting → grouped rendering + default sort in JS.
-   - Parameters → a read-only "Filters applied" strip driven by `parameters`.
-   - Layout → title, summary card(s), the table, and a footer (generated-on, executed-by,
-     filters) mirroring the original.
+   - Fields (ViewModel) → the table columns, in the thought file's order, with the same
+     header labels the Razor view used.
+   - Data Access → which fields are pre-computed (render as-is) vs. what the *view* did
+     (formatting, counts) that your JS must reproduce.
+   - Business logic → view-level transforms only (formatting, aggregate summaries,
+     conditional formatting). Do not re-run the server-side query logic.
+   - Grouping/sorting → preserve incoming row order unless the thought file says otherwise.
+   - Parameters → a read-only "Filters applied" strip driven by `parameters` (omit if the
+     report takes none).
+   - Layout → title, summary card/banner (e.g. `Total Transplants`), the table, and a
+     footer (generated-on, executed-by) mirroring the original view.
 
 2. **Generate `{report_key}.html`** — semantic, self-contained structure with binding
    hooks (element ids/`data-*` the JS targets), a `<summary>`/card region, a `<table>`
@@ -71,9 +90,13 @@ template can also be opened standalone for design review).
    for the exact structure and binding conventions.
 
 ## Fidelity rules
-- Reproduce the thought file's formulas precisely (e.g. `Parameters!ReportingYear.Value-3`
-  → the column for `reportingYear - 3`). If a rule is unclear, do not invent one — report it.
-- Column order, headers, and grouping must match the thought file.
+- Render derived/formatted fields **as the data service already produced them**; only
+  reproduce **view-level** transforms (formatting, counts) the thought file attributes to
+  the Razor view. If a rule is unclear, do not invent one — report it.
+- Column order and header labels must match the thought file (i.e. the Razor view).
+- Date/number formatting should match the original view (e.g. `ToShortDateString()`).
+- Aggregate summaries the view showed (e.g. `Total Transplants: @Model.Count()`) must be
+  reproduced from `rows`.
 - Conditional formatting/suppression described in the thought file must be implemented.
 - Accessibility: `<table>` with proper `<th scope>`; do not rely on color alone.
 - Self-contained: no network calls, no external CSS/JS/fonts/images.

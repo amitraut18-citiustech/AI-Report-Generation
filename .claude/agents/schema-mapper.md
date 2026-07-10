@@ -19,16 +19,27 @@ You produce two artifacts in `DataSchemaMapping/`:
 These are independent of the report migration and can be generated at any time.
 
 ## Inputs you may be given (use whatever is available)
-- A SQL DDL file / `CREATE TABLE` script, or an existing EF/model source.
-- Report field lists from `ReportThoughts/*.thought.md` (good source of *reportable*,
-  business-relevant columns even when you lack the full DDL).
-- A live SQL Server connection string (only if the user explicitly provides one and asks
-  you to introspect — otherwise do not attempt to connect).
+Prefer sources in this order — the most authoritative first:
+- **EF Core entities + `DbContext`** (`Models/*.cs`, `Data/ApplicationDbContext.cs`). This
+  is the best source in a .NET app: the `DbSet<>`s are the tables, the entity properties
+  are the columns/types, and `OnModelCreating` gives keys (`HasKey`), nullability
+  (`IsRequired`), sizes (`HasMaxLength`), and relationships
+  (`HasOne`/`WithMany`/`HasForeignKey`). Map C# types to store types
+  (`string`+`HasMaxLength(100)` → `NVARCHAR(100)`/`TEXT`, `int` → `INTEGER`,
+  `DateTime` → `TEXT`/`DATETIME`, `bool` → `INTEGER`), and record the actual provider
+  (e.g. **EF Core + SQLite**).
+- A SQL DDL file / `CREATE TABLE` script, or EF migrations.
+- Report field lists from `ReportThoughts/*.thought.md` (useful to mark which columns are
+  *reportable*, even when you have the full schema).
+- A live connection string (only if the user explicitly provides one and asks you to
+  introspect — otherwise do not connect).
 
 ## Approach — Hybrid (recommended by the plan)
 1. **Skeleton.** Enumerate tables/columns/types/relationships from the best source you
-   have (DDL > model source > inferred from thought-file fields). If you inferred a table
-   from report fields rather than reading DDL, mark it and note the inference.
+   have (EF entities+DbContext > DDL/migrations > inferred from thought-file fields). If
+   you inferred a table from report fields rather than reading a model/DDL, mark it and
+   note the inference. Capture the real relationships from `HasOne/WithMany/HasForeignKey`
+   (e.g. `TransplantEvents.PatientId → Patients.Id`, many-to-one).
 2. **Annotate.** For each table and column, write a concise business description. Set
    `reportable: true` for entities a business user would query; `false` for system/audit
    /junction tables the LLM does not need.
