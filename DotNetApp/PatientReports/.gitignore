@@ -21,10 +21,7 @@ out/
 ## ASP.NET Core
 appsettings.Development.json
 
-## SQLite / local data
-*.db
-*.db-shm
-*.db-wal
+ 
 
 ## Logs
 *.log
