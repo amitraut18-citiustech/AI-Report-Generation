@@ -73,8 +73,12 @@ template can also be opened standalone for design review).
 2. **Generate `{report_key}.html`** — semantic, self-contained structure with binding
    hooks (element ids/`data-*` the JS targets), a `<summary>`/card region, a `<table>`
    with a `<thead>` matching the report's columns, a filters strip, and a footer. Inline a
-   small, neutral `<style>` block (print-friendly, no external assets). Load the report JS
-   with a relative `<script src="{report_key}.js" defer></script>`.
+   small, neutral `<style>` block (print-friendly, no external assets). Immediately before
+   the report JS, emit the injection marker `<!-- REPORT_DATA -->` (byte-for-byte) on its
+   own line, then load the report JS with a relative
+   `<script src="{report_key}.js" defer></script>`. The .NET host replaces that marker with
+   an inline `<script>window.REPORT_DATA = {…};</script>` at runtime; the inline script runs
+   before the deferred report JS, so the data is set first.
 
 3. **Generate `{report_key}.js`** — a single module that on `DOMContentLoaded`:
    reads `window.REPORT_DATA`, applies the report's transforms/grouping/sorting/conditional

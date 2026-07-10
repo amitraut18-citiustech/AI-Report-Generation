@@ -67,6 +67,20 @@ window.REPORT_DATA = {
 Row keys mirror `TransplantEventReportViewModel` in camelCase. The report renders only from
 `window.REPORT_DATA` — no network calls, no external assets.
 
+### .NET host integration
+The HTML contains an injection marker immediately before the report script:
+
+```html
+<!-- REPORT_DATA -->
+<script src="transplant_event.js" defer></script>
+```
+
+At runtime the .NET host serializes `GetTransplantEventReportAsync()` (System.Text.Json →
+camelCase, ISO-8601 dates) and replaces the marker with
+`<script>window.REPORT_DATA = {…};</script>`. The inline script is non-deferred, so it runs
+before the deferred `transplant_event.js`. Serve `transplant_event.html` and
+`transplant_event.js` from the same URL path (the `<script src>` is relative).
+
 ## Deviations from source
 - The original RDL is a skeletal layout stub (title text and hard-coded header cells only,
   no dataset/fields); the Razor view was treated as authoritative for the 9-column layout,

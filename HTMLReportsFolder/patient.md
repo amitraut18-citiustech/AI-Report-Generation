@@ -63,6 +63,20 @@ window.REPORT_DATA = {
   state is shown and the table is hidden, so the HTML can be opened standalone for review.
 - Fully self-contained: no network calls and no external CSS/JS/fonts/images.
 
+### .NET host integration
+The HTML contains an injection marker immediately before the report script:
+
+```html
+<!-- REPORT_DATA -->
+<script src="patient.js" defer></script>
+```
+
+At runtime the .NET host serializes `GetPatientReportAsync()` (System.Text.Json →
+camelCase, ISO-8601 dates) and replaces the marker with
+`<script>window.REPORT_DATA = {…};</script>`. The inline script is non-deferred, so it runs
+before the deferred `patient.js`. Serve `patient.html` and `patient.js` from the same URL
+path (the `<script src>` is relative).
+
 ## Deviations from source
 - **Last column header** — uses "Phone Number" (the Razor view label), not the RDL's
   "Phone". Per the thought file, the Razor label is authoritative for the .NET app. See

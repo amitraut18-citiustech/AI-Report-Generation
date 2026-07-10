@@ -79,10 +79,20 @@ Rules:
       <span data-executed-by></span>
     </footer>
   </main>
+
+  <!-- REPORT_DATA -->
   <script src="{report_key}.js" defer></script>
 </body>
 </html>
 ```
+
+**The `<!-- REPORT_DATA -->` marker is required and must appear immediately before the
+`<script src>` tag.** At runtime the .NET host replaces this exact comment with an inline
+`<script>window.REPORT_DATA = {…};</script>`. Because it is a plain (non-deferred) inline
+script placed before the deferred report JS, `window.REPORT_DATA` is guaranteed to be set
+before the report JS runs. Keep the comment text byte-for-byte (`<!-- REPORT_DATA -->`) so
+the host's string replace is simple and robust. If the marker is left in place (template
+opened standalone), the JS falls back to an empty dataset and renders the empty state.
 
 Use stable `data-*` hooks (`data-rows`, `data-summary`, `data-narrative`, `data-filters`,
 `data-generated`, `data-executed-by`, `data-empty`) so the JS targets them without
