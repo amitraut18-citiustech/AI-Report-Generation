@@ -1,0 +1,511 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">
+  <Description>Patient Clinical Summary - a complex report joining Patients, Facilities, Providers, TransplantEvents, LabResults, Diagnoses and Medications. Demonstrates multi-table joins, parameter-driven conditions, nested master-detail sub-tables, calculated (formula) columns, and conditional formatting.</Description>
+  <AutoRefresh>0</AutoRefresh>
+  <DataSources>
+    <DataSource Name="ClinicalDataSource">
+      <ConnectionProperties>
+        <DataProvider>SQL</DataProvider>
+        <ConnectString>Data Source=(local);Initial Catalog=PatientReports;Integrated Security=SSPI</ConnectString>
+      </ConnectionProperties>
+      <rd:SecurityType>Integrated</rd:SecurityType>
+      <rd:DataSourceID>00000000-0000-0000-0000-000000000101</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="dsClinical">
+      <Query>
+        <DataSourceName>ClinicalDataSource</DataSourceName>
+        <QueryParameters>
+          <QueryParameter Name="@FromDate">
+            <Value>=Parameters!FromDate.Value</Value>
+          </QueryParameter>
+          <QueryParameter Name="@ToDate">
+            <Value>=Parameters!ToDate.Value</Value>
+          </QueryParameter>
+          <QueryParameter Name="@Status">
+            <Value>=Parameters!Status.Value</Value>
+          </QueryParameter>
+        </QueryParameters>
+        <CommandText>SELECT
+    f.Name AS FacilityName, f.City AS FacilityCity, f.State AS FacilityState,
+    p.Id AS PatientId, p.MRN, (p.FirstName + ' ' + p.LastName) AS PatientName,
+    p.Gender, p.DateOfBirth, p.HeightCm, p.WeightKg, p.Status,
+    te.EventId, te.TransplantNumber, te.DonorType, te.DateOfVisit, te.DateOfPreviousVisit,
+    te.TransplantDate, te.InfusionDate, te.DischargeDate, te.IsInpatient,
+    (pr.FirstName + ' ' + pr.LastName) AS ProviderName, pr.Specialty,
+    (SELECT TOP 1 d.Description FROM Diagnoses d WHERE d.PatientId = p.Id
+        ORDER BY CASE d.Severity WHEN 'Severe' THEN 3 WHEN 'Moderate' THEN 2 ELSE 1 END DESC, d.DiagnosedDate DESC) AS PrimaryDiagnosis,
+    (SELECT COUNT(*) FROM Medications m WHERE m.PatientId = p.Id AND m.IsActive = 1) AS ActiveMedCount,
+    lr.TestName AS LabTestName, lr.Value AS LabValue, lr.Unit AS LabUnit,
+    lr.ReferenceLow AS RefLow, lr.ReferenceHigh AS RefHigh, lr.TakenDate AS LabTakenDate
+FROM Patients p
+    INNER JOIN Facilities f ON f.Id = p.FacilityId
+    INNER JOIN TransplantEvents te ON te.PatientId = p.Id
+    INNER JOIN Providers pr ON pr.Id = te.ProviderId
+    LEFT JOIN LabResults lr ON lr.TransplantEventId = te.Id
+WHERE te.DateOfVisit BETWEEN @FromDate AND @ToDate
+    AND (@Status = 'All' OR p.Status = @Status)
+ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="FacilityName"><DataField>FacilityName</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="FacilityCity"><DataField>FacilityCity</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="FacilityState"><DataField>FacilityState</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="PatientId"><DataField>PatientId</DataField><rd:TypeName>System.Int32</rd:TypeName></Field>
+        <Field Name="MRN"><DataField>MRN</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="PatientName"><DataField>PatientName</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="Gender"><DataField>Gender</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="DateOfBirth"><DataField>DateOfBirth</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="HeightCm"><DataField>HeightCm</DataField><rd:TypeName>System.Double</rd:TypeName></Field>
+        <Field Name="WeightKg"><DataField>WeightKg</DataField><rd:TypeName>System.Double</rd:TypeName></Field>
+        <Field Name="Status"><DataField>Status</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="EventId"><DataField>EventId</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="TransplantNumber"><DataField>TransplantNumber</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="DonorType"><DataField>DonorType</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="DateOfVisit"><DataField>DateOfVisit</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="DateOfPreviousVisit"><DataField>DateOfPreviousVisit</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="TransplantDate"><DataField>TransplantDate</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="InfusionDate"><DataField>InfusionDate</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="DischargeDate"><DataField>DischargeDate</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="IsInpatient"><DataField>IsInpatient</DataField><rd:TypeName>System.Boolean</rd:TypeName></Field>
+        <Field Name="ProviderName"><DataField>ProviderName</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="Specialty"><DataField>Specialty</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="PrimaryDiagnosis"><DataField>PrimaryDiagnosis</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="ActiveMedCount"><DataField>ActiveMedCount</DataField><rd:TypeName>System.Int32</rd:TypeName></Field>
+        <Field Name="LabTestName"><DataField>LabTestName</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="LabValue"><DataField>LabValue</DataField><rd:TypeName>System.Double</rd:TypeName></Field>
+        <Field Name="LabUnit"><DataField>LabUnit</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="RefLow"><DataField>RefLow</DataField><rd:TypeName>System.Double</rd:TypeName></Field>
+        <Field Name="RefHigh"><DataField>RefHigh</DataField><rd:TypeName>System.Double</rd:TypeName></Field>
+        <Field Name="LabTakenDate"><DataField>LabTakenDate</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="Age"><Value>=Floor(DateDiff(DateInterval.Day, Fields!DateOfBirth.Value, Today()) / 365.25)</Value></Field>
+        <Field Name="BMI"><Value>=IIF(Fields!HeightCm.Value &gt; 0, Round(Fields!WeightKg.Value / ((Fields!HeightCm.Value / 100) * (Fields!HeightCm.Value / 100)), 1), 0)</Value></Field>
+        <Field Name="DaysSincePreviousVisit"><Value>=DateDiff(DateInterval.Day, Fields!DateOfPreviousVisit.Value, Fields!DateOfVisit.Value)</Value></Field>
+        <Field Name="LabFlag"><Value>=IIF(IsNothing(Fields!LabValue.Value), "", IIF(Fields!LabValue.Value &lt; Fields!RefLow.Value Or Fields!LabValue.Value &gt; Fields!RefHigh.Value, "OUT", "OK"))</Value></Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <ReportSections>
+    <ReportSection>
+      <Body>
+        <ReportItems>
+          <Textbox Name="ReportTitle">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns>
+                  <TextRun>
+                    <Value>Patient Clinical Summary Report</Value>
+                    <Style><FontFamily>Segoe UI</FontFamily><FontSize>18pt</FontSize><FontWeight>Bold</FontWeight><Color>#1f3864</Color></Style>
+                  </TextRun>
+                </TextRuns>
+                <Style />
+              </Paragraph>
+            </Paragraphs>
+            <rd:DefaultName>ReportTitle</rd:DefaultName>
+            <Top>0in</Top>
+            <Left>0in</Left>
+            <Height>0.4in</Height>
+            <Width>8.5in</Width>
+            <Style><Border><Style>None</Style></Border></Style>
+          </Textbox>
+          <Textbox Name="FilterEcho">
+            <CanGrow>true</CanGrow>
+            <KeepTogether>true</KeepTogether>
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns>
+                  <TextRun>
+                    <Value>="Filters  -  Visit dates: " &amp; Format(Parameters!FromDate.Value, "MM/dd/yyyy") &amp; " to " &amp; Format(Parameters!ToDate.Value, "MM/dd/yyyy") &amp; "     |     Patient status: " &amp; Parameters!Status.Value</Value>
+                    <Style><FontFamily>Segoe UI</FontFamily><FontSize>9pt</FontSize><FontStyle>Italic</FontStyle><Color>#595959</Color></Style>
+                  </TextRun>
+                </TextRuns>
+                <Style />
+              </Paragraph>
+            </Paragraphs>
+            <rd:DefaultName>FilterEcho</rd:DefaultName>
+            <Top>0.42in</Top>
+            <Left>0in</Left>
+            <Height>0.25in</Height>
+            <Width>8.5in</Width>
+            <Style><Border><Style>None</Style></Border></Style>
+          </Textbox>
+          <Textbox Name="SummaryHeading">
+            <CanGrow>true</CanGrow>
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns>
+                  <TextRun>
+                    <Value>Facility Summary</Value>
+                    <Style><FontFamily>Segoe UI</FontFamily><FontSize>12pt</FontSize><FontWeight>Bold</FontWeight><Color>#1f3864</Color></Style>
+                  </TextRun>
+                </TextRuns>
+                <Style />
+              </Paragraph>
+            </Paragraphs>
+            <rd:DefaultName>SummaryHeading</rd:DefaultName>
+            <Top>0.75in</Top>
+            <Left>0in</Left>
+            <Height>0.3in</Height>
+            <Width>8.5in</Width>
+            <Style><Border><Style>None</Style></Border></Style>
+          </Textbox>
+          <Tablix Name="FacilitySummary">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn><Width>2.4in</Width></TablixColumn>
+                <TablixColumn><Width>1.0in</Width></TablixColumn>
+                <TablixColumn><Width>1.0in</Width></TablixColumn>
+                <TablixColumn><Width>1.0in</Width></TablixColumn>
+                <TablixColumn><Width>1.5in</Width></TablixColumn>
+                <TablixColumn><Width>1.6in</Width></TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.28in</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="hFac"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Facility</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>hFac</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor><PaddingLeft>3pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hPat"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value># Patients</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hPat</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hEvt"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value># Events</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hEvt</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hAge"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Avg Age</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hAge</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hInp"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Inpatient Events</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hInp</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hOor"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Out-of-range Labs</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hOor</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+                <TablixRow>
+                  <Height>0.26in</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="sFac"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!FacilityName.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>sFac</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><PaddingLeft>3pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="sPat"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=CountDistinct(Fields!PatientId.Value)</Value><Style /></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>sPat</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="sEvt"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=CountDistinct(Fields!EventId.Value)</Value><Style /></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>sEvt</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="sAge"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Round(Avg(Fields!Age.Value), 0)</Value><Style /></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>sAge</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="sInp"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=CountDistinct(IIF(Fields!IsInpatient.Value, Fields!EventId.Value, Nothing))</Value><Style /></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>sInp</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="sOor"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Sum(IIF(Fields!LabFlag.Value = "OUT", 1, 0))</Value><Style><Color>=IIF(Sum(IIF(Fields!LabFlag.Value = "OUT", 1, 0)) &gt; 0, "#b02a37", "Black")</Color><FontWeight>=IIF(Sum(IIF(Fields!LabFlag.Value = "OUT", 1, 0)) &gt; 0, "Bold", "Normal")</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>sOor</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixColumnHierarchy>
+              <TablixMembers>
+                <TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember />
+              </TablixMembers>
+            </TablixColumnHierarchy>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <KeepWithGroup>After</KeepWithGroup>
+                  <RepeatOnNewPage>true</RepeatOnNewPage>
+                </TablixMember>
+                <TablixMember>
+                  <Group Name="grpFacSummary">
+                    <GroupExpressions>
+                      <GroupExpression>=Fields!FacilityName.Value</GroupExpression>
+                    </GroupExpressions>
+                  </Group>
+                  <SortExpressions>
+                    <SortExpression><Value>=Fields!FacilityName.Value</Value></SortExpression>
+                  </SortExpressions>
+                  <TablixMembers>
+                    <TablixMember />
+                  </TablixMembers>
+                </TablixMember>
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <Top>1.1in</Top>
+            <Left>0in</Left>
+            <Height>0.54in</Height>
+            <Width>8.5in</Width>
+            <Style><Border><Style>None</Style></Border></Style>
+          </Tablix>
+          <Textbox Name="DetailHeading">
+            <CanGrow>true</CanGrow>
+            <Paragraphs>
+              <Paragraph>
+                <TextRuns>
+                  <TextRun>
+                    <Value>Clinical Detail by Facility, Patient and Transplant Event</Value>
+                    <Style><FontFamily>Segoe UI</FontFamily><FontSize>12pt</FontSize><FontWeight>Bold</FontWeight><Color>#1f3864</Color></Style>
+                  </TextRun>
+                </TextRuns>
+                <Style />
+              </Paragraph>
+            </Paragraphs>
+            <rd:DefaultName>DetailHeading</rd:DefaultName>
+            <Top>1.85in</Top>
+            <Left>0in</Left>
+            <Height>0.3in</Height>
+            <Width>8.5in</Width>
+            <Style><Border><Style>None</Style></Border></Style>
+          </Textbox>
+          <Tablix Name="ClinicalDetail">
+            <TablixBody>
+              <TablixColumns>
+                <TablixColumn><Width>0.9in</Width></TablixColumn>
+                <TablixColumn><Width>0.9in</Width></TablixColumn>
+                <TablixColumn><Width>1.4in</Width></TablixColumn>
+                <TablixColumn><Width>0.9in</Width></TablixColumn>
+                <TablixColumn><Width>0.8in</Width></TablixColumn>
+                <TablixColumn><Width>1.1in</Width></TablixColumn>
+                <TablixColumn><Width>0.9in</Width></TablixColumn>
+                <TablixColumn><Width>1.0in</Width></TablixColumn>
+                <TablixColumn><Width>0.6in</Width></TablixColumn>
+              </TablixColumns>
+              <TablixRows>
+                <TablixRow>
+                  <Height>0.26in</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="tEvent"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Event</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tEvent</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor><PaddingLeft>3pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tVisit"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Visit Date</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tVisit</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tProv"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Provider</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tProv</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tDonor"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Donor</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tDonor</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tSetting"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Setting</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tSetting</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tTest"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Test</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tTest</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tResult"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Result</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tResult</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tRef"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Reference</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tRef</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tFlag"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Flag</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tFlag</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+                <TablixRow>
+                  <Height>0.26in</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="bFacility"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>="Facility:  " &amp; Fields!FacilityName.Value &amp; "   -   " &amp; Fields!FacilityCity.Value &amp; ", " &amp; Fields!FacilityState.Value</Value><Style><FontWeight>Bold</FontWeight><Color>#1f3864</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>bFacility</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#dbe5f1</BackgroundColor><PaddingLeft>3pt</PaddingLeft></Style></Textbox><ColSpan>9</ColSpan></CellContents></TablixCell>
+                    <TablixCell /><TablixCell /><TablixCell /><TablixCell /><TablixCell /><TablixCell /><TablixCell /><TablixCell />
+                  </TablixCells>
+                </TablixRow>
+                <TablixRow>
+                  <Height>0.28in</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="bPatient"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>="Patient:  " &amp; First(Fields!PatientName.Value, "grpPatient") &amp; "     MRN: " &amp; First(Fields!MRN.Value, "grpPatient") &amp; "     Age: " &amp; First(Fields!Age.Value, "grpPatient") &amp; "     Sex: " &amp; First(Fields!Gender.Value, "grpPatient") &amp; "     BMI: " &amp; First(Fields!BMI.Value, "grpPatient") &amp; " (" &amp; Code.BmiCategory(First(Fields!BMI.Value, "grpPatient")) &amp; ")     Risk: " &amp; Code.RiskScore(First(Fields!Age.Value, "grpPatient"), Sum(IIF(Fields!IsInpatient.Value, 1, 0), "grpPatient") &gt; 0, Sum(IIF(Fields!LabFlag.Value = "OUT", 1, 0), "grpPatient")) &amp; "     Primary Dx: " &amp; First(Fields!PrimaryDiagnosis.Value, "grpPatient") &amp; "     Active meds: " &amp; First(Fields!ActiveMedCount.Value, "grpPatient")</Value><Style><FontWeight>Bold</FontWeight></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>bPatient</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>=IIF(Code.RiskScore(First(Fields!Age.Value, "grpPatient"), Sum(IIF(Fields!IsInpatient.Value, 1, 0), "grpPatient") &gt; 0, Sum(IIF(Fields!LabFlag.Value = "OUT", 1, 0), "grpPatient")) &gt;= 4, "#f8d7da", "#d1e7dd")</BackgroundColor><PaddingLeft>3pt</PaddingLeft></Style></Textbox><ColSpan>9</ColSpan></CellContents></TablixCell>
+                    <TablixCell /><TablixCell /><TablixCell /><TablixCell /><TablixCell /><TablixCell /><TablixCell /><TablixCell />
+                  </TablixCells>
+                </TablixRow>
+                <TablixRow>
+                  <Height>0.24in</Height>
+                  <TablixCells>
+                    <TablixCell><CellContents><Textbox Name="dEvent"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!EventId.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dEvent</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><PaddingLeft>3pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dVisit"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Format(Fields!DateOfVisit.Value, "MM/dd/yyyy")</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dVisit</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dProv"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!ProviderName.Value &amp; " (" &amp; Fields!Specialty.Value &amp; ")"</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dProv</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dDonor"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!DonorType.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dDonor</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dSetting"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(Fields!IsInpatient.Value, "Inpatient", "Outpatient")</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dSetting</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>=IIF(Fields!IsInpatient.Value, "#fff3cd", "Transparent")</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dTest"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(IsNothing(Fields!LabTestName.Value), "-", Fields!LabTestName.Value)</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dTest</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dResult"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(IsNothing(Fields!LabValue.Value), "-", CStr(Fields!LabValue.Value) &amp; " " &amp; Fields!LabUnit.Value)</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dResult</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dRef"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(IsNothing(Fields!RefLow.Value), "-", CStr(Fields!RefLow.Value) &amp; " - " &amp; CStr(Fields!RefHigh.Value))</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dRef</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dFlag"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!LabFlag.Value</Value><Style><Color>=IIF(Fields!LabFlag.Value = "OUT", "#b02a37", "#0f5132")</Color><FontWeight>=IIF(Fields!LabFlag.Value = "OUT", "Bold", "Normal")</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>dFlag</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                  </TablixCells>
+                </TablixRow>
+              </TablixRows>
+            </TablixBody>
+            <TablixColumnHierarchy>
+              <TablixMembers>
+                <TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember /><TablixMember />
+              </TablixMembers>
+            </TablixColumnHierarchy>
+            <TablixRowHierarchy>
+              <TablixMembers>
+                <TablixMember>
+                  <KeepWithGroup>After</KeepWithGroup>
+                  <RepeatOnNewPage>true</RepeatOnNewPage>
+                </TablixMember>
+                <TablixMember>
+                  <Group Name="grpFacility">
+                    <GroupExpressions>
+                      <GroupExpression>=Fields!FacilityName.Value</GroupExpression>
+                    </GroupExpressions>
+                  </Group>
+                  <SortExpressions>
+                    <SortExpression><Value>=Fields!FacilityName.Value</Value></SortExpression>
+                  </SortExpressions>
+                  <TablixMembers>
+                    <TablixMember>
+                      <Group Name="grpPatient">
+                        <GroupExpressions>
+                          <GroupExpression>=Fields!PatientId.Value</GroupExpression>
+                        </GroupExpressions>
+                      </Group>
+                      <SortExpressions>
+                        <SortExpression><Value>=Fields!PatientName.Value</Value></SortExpression>
+                      </SortExpressions>
+                      <TablixMembers>
+                        <TablixMember>
+                          <Group Name="grpDetail">
+                            <GroupExpressions>
+                              <GroupExpression>=Fields!EventId.Value</GroupExpression>
+                              <GroupExpression>=Fields!LabTestName.Value</GroupExpression>
+                            </GroupExpressions>
+                          </Group>
+                          <SortExpressions>
+                            <SortExpression><Value>=Fields!DateOfVisit.Value</Value></SortExpression>
+                            <SortExpression><Value>=Fields!LabTestName.Value</Value></SortExpression>
+                          </SortExpressions>
+                        </TablixMember>
+                      </TablixMembers>
+                    </TablixMember>
+                  </TablixMembers>
+                </TablixMember>
+              </TablixMembers>
+            </TablixRowHierarchy>
+            <Top>2.2in</Top>
+            <Left>0in</Left>
+            <Height>1.04in</Height>
+            <Width>8.5in</Width>
+            <Style><Border><Style>None</Style></Border></Style>
+          </Tablix>
+        </ReportItems>
+        <Height>3.4in</Height>
+        <Style />
+      </Body>
+      <Width>8.5in</Width>
+      <Page>
+        <PageFooter>
+          <Height>0.4in</Height>
+          <PrintOnFirstPage>true</PrintOnFirstPage>
+          <PrintOnLastPage>true</PrintOnLastPage>
+          <ReportItems>
+            <Textbox Name="FooterGenerated">
+              <CanGrow>true</CanGrow>
+              <Paragraphs>
+                <Paragraph>
+                  <TextRuns>
+                    <TextRun>
+                      <Value>="Generated: " &amp; Format(Globals!ExecutionTime, "MM/dd/yyyy HH:mm") &amp; "     |     Run by: " &amp; Parameters!rptUser.Value</Value>
+                      <Style><FontFamily>Segoe UI</FontFamily><FontSize>8pt</FontSize><Color>#595959</Color></Style>
+                    </TextRun>
+                  </TextRuns>
+                  <Style />
+                </Paragraph>
+              </Paragraphs>
+              <rd:DefaultName>FooterGenerated</rd:DefaultName>
+              <Top>0.05in</Top>
+              <Left>0in</Left>
+              <Height>0.25in</Height>
+              <Width>6in</Width>
+              <Style><Border><Style>None</Style></Border></Style>
+            </Textbox>
+            <Textbox Name="FooterPage">
+              <CanGrow>true</CanGrow>
+              <Paragraphs>
+                <Paragraph>
+                  <TextRuns>
+                    <TextRun>
+                      <Value>="Page " &amp; Globals!PageNumber &amp; " of " &amp; Globals!TotalPages</Value>
+                      <Style><FontFamily>Segoe UI</FontFamily><FontSize>8pt</FontSize><Color>#595959</Color></Style>
+                    </TextRun>
+                  </TextRuns>
+                  <Style><TextAlign>Right</TextAlign></Style>
+                </Paragraph>
+              </Paragraphs>
+              <rd:DefaultName>FooterPage</rd:DefaultName>
+              <Top>0.05in</Top>
+              <Left>6.1in</Left>
+              <Height>0.25in</Height>
+              <Width>2.4in</Width>
+              <Style><Border><Style>None</Style></Border></Style>
+            </Textbox>
+          </ReportItems>
+          <Style />
+        </PageFooter>
+        <PageHeight>11in</PageHeight>
+        <PageWidth>8.5in</PageWidth>
+        <LeftMargin>0.5in</LeftMargin>
+        <RightMargin>0.5in</RightMargin>
+        <TopMargin>0.5in</TopMargin>
+        <BottomMargin>0.5in</BottomMargin>
+        <Style />
+      </Page>
+    </ReportSection>
+  </ReportSections>
+  <ReportParameters>
+    <ReportParameter Name="FromDate">
+      <DataType>DateTime</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>=CDate("2026-01-01")</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>Visit date from</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="ToDate">
+      <DataType>DateTime</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>=CDate("2026-12-31")</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>Visit date to</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="Status">
+      <DataType>String</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>All</Value>
+        </Values>
+      </DefaultValue>
+      <ValidValues>
+        <ParameterValues>
+          <ParameterValue><Value>All</Value><Label>All</Label></ParameterValue>
+          <ParameterValue><Value>Active</Value><Label>Active</Label></ParameterValue>
+          <ParameterValue><Value>Inactive</Value><Label>Inactive</Label></ParameterValue>
+        </ParameterValues>
+      </ValidValues>
+      <Prompt>Patient status</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="rptUser">
+      <DataType>String</DataType>
+      <Nullable>true</Nullable>
+      <DefaultValue>
+        <Values>
+          <Value>system</Value>
+        </Values>
+      </DefaultValue>
+      <AllowBlank>true</AllowBlank>
+      <Prompt>rptUser</Prompt>
+      <Hidden>true</Hidden>
+    </ReportParameter>
+  </ReportParameters>
+  <ReportParametersLayout>
+    <GridLayoutDefinition>
+      <NumberOfColumns>3</NumberOfColumns>
+      <NumberOfRows>1</NumberOfRows>
+      <CellDefinitions>
+        <CellDefinition><ColumnIndex>0</ColumnIndex><RowIndex>0</RowIndex><ParameterName>FromDate</ParameterName></CellDefinition>
+        <CellDefinition><ColumnIndex>1</ColumnIndex><RowIndex>0</RowIndex><ParameterName>ToDate</ParameterName></CellDefinition>
+        <CellDefinition><ColumnIndex>2</ColumnIndex><RowIndex>0</RowIndex><ParameterName>Status</ParameterName></CellDefinition>
+      </CellDefinitions>
+    </GridLayoutDefinition>
+  </ReportParametersLayout>
+  <Code>
+Public Function BmiCategory(ByVal bmi As Double) As String
+  If bmi = 0 Then
+    Return "N/A"
+  ElseIf bmi &lt; 18.5 Then
+    Return "Underweight"
+  ElseIf bmi &lt; 25 Then
+    Return "Normal"
+  ElseIf bmi &lt; 30 Then
+    Return "Overweight"
+  Else
+    Return "Obese"
+  End If
+End Function
+
+Public Function RiskScore(ByVal age As Integer, ByVal inpatient As Boolean, ByVal outOfRangeLabs As Integer) As Integer
+  Dim score As Integer = 0
+  If age &gt;= 65 Then
+    score = score + 2
+  ElseIf age &gt;= 45 Then
+    score = score + 1
+  End If
+  If inpatient Then
+    score = score + 2
+  End If
+  score = score + outOfRangeLabs
+  Return score
+End Function
+</Code>
+  <Language>en-US</Language>
+  <ConsumeContainerWhitespace>true</ConsumeContainerWhitespace>
+  <rd:ReportUnitType>Inch</rd:ReportUnitType>
+  <rd:ReportID>00000000-0000-0000-0000-000000000201</rd:ReportID>
+</Report>

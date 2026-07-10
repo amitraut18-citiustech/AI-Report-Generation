@@ -1,0 +1,62 @@
+@model PatientReports.Models.ReportsHubViewModel
+@{
+    ViewData["Title"] = "Reports";
+}
+
+<h2 class="mb-3">Reports</h2>
+
+<form method="get" asp-action="Index" class="row g-2 align-items-end mb-4">
+    <div class="col-auto">
+        <label for="report" class="form-label fw-semibold">Report</label>
+        <select id="report" name="report" class="form-select">
+            <option value="">-- Select a report --</option>
+            @foreach (var (value, label) in PatientReports.Models.ReportsHubViewModel.AvailableReports)
+            {
+                if (Model.SelectedReport == value)
+                {
+                    <option value="@value" selected>@label</option>
+                }
+                else
+                {
+                    <option value="@value">@label</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Generate Report</button>
+    </div>
+    @if (!string.IsNullOrEmpty(Model.SelectedReport))
+    {
+        <div class="col-auto">
+            <a class="btn btn-outline-danger"
+               asp-action="Download" asp-route-report="@Model.SelectedReport">
+                &#128190; Download PDF
+            </a>
+        </div>
+    }
+</form>
+
+@if (string.IsNullOrEmpty(Model.SelectedReport))
+{
+    <div class="alert alert-secondary">Select a report above and click <strong>Generate Report</strong>.</div>
+}
+else if (Model.SelectedReport == "patient" && Model.PatientRows != null)
+{
+    <h3 class="mb-3">Patient Report</h3>
+    @await Html.PartialAsync("_PatientReport", Model.PatientRows)
+}
+else if (Model.SelectedReport == "transplant" && Model.TransplantRows != null)
+{
+    <h3 class="mb-3">Transplant Event Report</h3>
+    @await Html.PartialAsync("_TransplantEventReport", Model.TransplantRows)
+}
+else if (Model.SelectedReport == "clinical" && Model.Clinical != null)
+{
+    <h3 class="mb-3">Patient Clinical Summary</h3>
+    @await Html.PartialAsync("_ClinicalSummary", Model.Clinical)
+}
+else
+{
+    <div class="alert alert-warning">Unknown report selected.</div>
+}

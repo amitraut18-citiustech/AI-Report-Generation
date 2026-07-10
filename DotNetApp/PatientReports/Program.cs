@@ -1,11 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using PatientReports.Data;
 using PatientReports.DataServices;
+using PdfSharp.Fonts;
+
+// PDFsharp core build has no system-font access; supply a resolver for the PDF reports.
+GlobalFontSettings.FontResolver = new WindowsFontResolver();
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<PatientReports.DataServices.PdfReportService>();
 var dbPath = Path.Combine(builder.Environment.ContentRootPath, "db", "PatientDB.db");
 Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
