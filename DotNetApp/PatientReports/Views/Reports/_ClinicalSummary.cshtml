@@ -1,0 +1,109 @@
+@model PatientReports.Models.ClinicalSummaryViewModel
+
+@if (Model == null || !Model.Facilities.Any())
+{
+    <div class="alert alert-warning">No clinical data available.</div>
+    return;
+}
+
+<h4 class="mt-2">Facility Summary</h4>
+<table class="table table-sm table-bordered">
+    <thead class="table-dark">
+        <tr>
+            <th>Facility</th>
+            <th class="text-center"># Patients</th>
+            <th class="text-center"># Events</th>
+            <th class="text-center">Avg Age</th>
+            <th class="text-center">Inpatient Events</th>
+            <th class="text-center">Out-of-range Labs</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var f in Model.Facilities)
+        {
+            <tr>
+                <td>@f.FacilityName <span class="text-muted">(@f.City, @f.State)</span></td>
+                <td class="text-center">@f.PatientCount</td>
+                <td class="text-center">@f.EventCount</td>
+                <td class="text-center">@f.AvgAge</td>
+                <td class="text-center">@f.InpatientEvents</td>
+                <td class="text-center @(f.OutOfRangeLabs > 0 ? "text-danger fw-bold" : "")">@f.OutOfRangeLabs</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<h4 class="mt-4">Clinical Detail by Facility, Patient and Transplant Event</h4>
+
+@foreach (var f in Model.Facilities)
+{
+    <div class="border rounded mb-4">
+        <div class="px-3 py-2 fw-bold" style="background-color:#dbe5f1; color:#1f3864;">
+            Facility: @f.FacilityName &ndash; @f.City, @f.State
+        </div>
+
+        @foreach (var p in f.Patients)
+        {
+            <div class="px-3 py-2 border-top @(p.IsHighRisk ? "bg-danger-subtle" : "bg-success-subtle")">
+                <span class="fw-bold">@p.PatientName</span>
+                <span class="text-muted">| MRN: @p.MRN</span>
+                <span class="text-muted">| Age: @p.Age</span>
+                <span class="text-muted">| Sex: @p.Gender</span>
+                <span class="text-muted">| BMI: @p.BMI (@p.BmiCategory)</span>
+                <span class="badge @(p.IsHighRisk ? "bg-danger" : "bg-success")">Risk: @p.RiskScore</span>
+                <span class="text-muted">| Primary Dx: @p.PrimaryDiagnosis</span>
+                <span class="text-muted">| Active meds: @p.ActiveMedCount</span>
+            </div>
+
+            <div class="px-3 pb-3">
+                @foreach (var e in p.Events)
+                {
+                    <div class="mt-2 small">
+                        <span class="fw-semibold">@e.EventId</span>
+                        <span class="text-muted">| Visit: @e.DateOfVisit.ToShortDateString()</span>
+                        <span class="text-muted">| Provider: @e.ProviderName (@e.Specialty)</span>
+                        <span class="text-muted">| Donor: @e.DonorType</span>
+                        @if (e.IsInpatient)
+                        {
+                            <span class="badge text-bg-warning">Inpatient</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-light">Outpatient</span>
+                        }
+                        <span class="text-muted">| Days since previous visit: @e.DaysSincePreviousVisit</span>
+                    </div>
+
+                    @if (e.Labs.Any())
+                    {
+                        <table class="table table-sm table-bordered mb-0 mt-1">
+                            <thead>
+                                <tr class="table-light">
+                                    <th>Test</th>
+                                    <th>Result</th>
+                                    <th>Reference</th>
+                                    <th class="text-center">Flag</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var l in e.Labs)
+                                {
+                                    <tr class="@(l.IsOutOfRange ? "table-danger" : "")">
+                                        <td>@l.TestName</td>
+                                        <td>@l.Value @l.Unit</td>
+                                        <td>@l.ReferenceLow &ndash; @l.ReferenceHigh</td>
+                                        <td class="text-center @(l.IsOutOfRange ? "text-danger fw-bold" : "text-success")">@l.Flag</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <div class="small text-muted fst-italic mt-1">No lab results recorded for this event.</div>
+                    }
+                }
+            </div>
+        }
+    </div>
+}
