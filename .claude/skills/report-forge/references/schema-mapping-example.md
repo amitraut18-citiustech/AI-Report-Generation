@@ -2,6 +2,14 @@
 
 Two files in `DataSchemaMapping/`, consumed by the Phase 2 Python brain.
 
+> **Source & types.** When the schema comes from EF Core, derive tables from `DbSet<>`s,
+> columns/types from entity properties + `OnModelCreating`, and relationships from
+> `HasOne/WithMany/HasForeignKey`. Use `type` values that reflect the **actual provider**
+> (SQL Server: `NVARCHAR(100)`, `INT`, `DATETIME`, `BIT`; SQLite: `TEXT`, `INTEGER`,
+> `TEXT`, `INTEGER`). Set `database` to the real database/provider (e.g.
+> `"PatientDB (EF Core + SQLite)"`). The example below uses SQL Server types for
+> illustration — substitute the provider's types.
+
 ## `schema-mapping.json`
 
 Business-aware map used to decode NL prompts into report keys + parameters.

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Patient Report</title>
+  <style>
+    :root {
+      --fg: #1a1a1a;
+      --muted: #555;
+      --border: #d0d0d0;
+      --header-bg: #212529;
+      --header-fg: #ffffff;
+      --stripe: #f5f5f5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--fg);
+      background: #fff;
+      line-height: 1.4;
+    }
+    .report { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+    .report__header { margin-bottom: 1rem; }
+    .report__title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      text-align: center;
+      margin: 0 0 0.5rem;
+    }
+    .report__filters { color: var(--muted); margin: 0; }
+    .report__narrative {
+      background: var(--stripe);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.75rem 1rem;
+      margin: 0 0 1rem;
+    }
+    .report__table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    .report__table th,
+    .report__table td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.65rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .report__table thead th {
+      background: var(--header-bg);
+      color: var(--header-fg);
+      font-weight: 600;
+    }
+    .report__table tbody tr:nth-child(odd) { background: var(--stripe); }
+    .report__empty {
+      padding: 1rem;
+      color: var(--muted);
+      text-align: center;
+      border: 1px dashed var(--border);
+      border-radius: 4px;
+    }
+    .report__footer {
+      margin-top: 1.25rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+    @media print {
+      .report { max-width: none; padding: 0; }
+      .report__table thead { display: table-header-group; }
+      .report__table tbody tr:nth-child(odd) { background: transparent; }
+      .report__table th, .report__table td { border-color: #000; }
+    }
+  </style>
+</head>
+<body>
+  <main class="report" id="report">
+    <header class="report__header">
+      <h1 class="report__title">Patient Report</h1>
+      <p class="report__filters" data-filters hidden></p>
+    </header>
+
+    <section class="report__narrative" data-narrative hidden></section>
+
+    <table class="report__table" data-table>
+      <caption class="sr-only">Listing of all patients with demographic and contact details, ordered by last name.</caption>
+      <thead>
+        <tr>
+          <th scope="col">First Name</th>
+          <th scope="col">Last Name</th>
+          <th scope="col">Gender</th>
+          <th scope="col">Date of Birth</th>
+          <th scope="col">Contact Number</th>
+          <th scope="col">Email</th>
+          <th scope="col">Phone Number</th>
+        </tr>
+      </thead>
+      <tbody data-rows>
+        <!-- rows injected by patient.js -->
+      </tbody>
+    </table>
+
+    <p class="report__empty" data-empty hidden>No data available.</p>
+
+    <footer class="report__footer">
+      <span data-generated></span>
+      <span data-executed-by></span>
+      <span data-row-count></span>
+    </footer>
+  </main>
+
+  <!-- REPORT_DATA -->
+  <script src="patient.js" defer></script>
+</body>
+</html>

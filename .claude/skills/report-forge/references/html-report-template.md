@@ -6,15 +6,21 @@ contract they must follow.
 
 ## Runtime data contract
 
-At runtime the .NET app injects one global **before** the report JS runs:
+At runtime the .NET app runs the report's data service, gets a `List<...ReportViewModel>`,
+and injects one global **before** the report JS runs. `rows` mirrors the ViewModel:
 
 ```js
 window.REPORT_DATA = {
-  parameters: { /* resolved filter params, camelCase, e.g. reportingYear: 2026 */ },
-  rows: [ /* row objects; keys = field names from the thought file */ ],
+  parameters: { /* resolved filter params, camelCase; {} if the report takes none */ },
+  rows: [ /* one object per ViewModel row; keys = ViewModel properties in camelCase */ ],
   narrative: "",                                  // LLM summary; may be empty
   meta: { generatedAt: "2026-07-06T10:00:00Z", executedBy: "jdoe", rowCount: 0 }
 };
+
+// Example row for TransplantEventReportViewModel:
+// { patientName: "Jane Doe", dateOfVisit: "2026-02-11", dateOfPreviousVisit: "2025-11-03",
+//   transplantDate: "2025-12-01", infusionDate: "2025-12-02", eventId: "EVT-1007",
+//   transplantNumber: "2", isInpatient: "Yes" }
 ```
 
 Rules:
@@ -22,8 +28,11 @@ Rules:
   CSS/JS/fonts/images/CDN. Fully self-contained and offline-openable.
 - If `REPORT_DATA` is absent or `rows` is empty, render a visible empty state. This lets a
   developer open the `.html` directly to review layout.
-- All business transforms (grouping, derived columns, conditional formatting) happen in JS
-  over `rows`, reproducing the thought file's logic exactly.
+- **Derived fields (full name, `"Yes"/"No"`, etc.) arrive pre-computed in `rows`** — render
+  them as-is; do not re-run server-side query logic in JS.
+- JS handles only **view-level** concerns: date/number formatting to match the original
+  view, aggregate summaries (e.g. `Total Transplants: rows.length`), and any conditional
+  formatting/ordering the thought file assigns to the view.
 
 ## `{report_key}.html` skeleton
 
@@ -70,10 +79,20 @@ Rules:
       <span data-executed-by></span>
     </footer>
   </main>
+
+  <!-- REPORT_DATA -->
   <script src="{report_key}.js" defer></script>
 </body>
 </html>
 ```
+
+**The `<!-- REPORT_DATA -->` marker is required and must appear immediately before the
+`<script src>` tag.** At runtime the .NET host replaces this exact comment with an inline
+`<script>window.REPORT_DATA = {…};</script>`. Because it is a plain (non-deferred) inline
+script placed before the deferred report JS, `window.REPORT_DATA` is guaranteed to be set
+before the report JS runs. Keep the comment text byte-for-byte (`<!-- REPORT_DATA -->`) so
+the host's string replace is simple and robust. If the marker is left in place (template
+opened standalone), the JS falls back to an empty dataset and renders the empty state.
 
 Use stable `data-*` hooks (`data-rows`, `data-summary`, `data-narrative`, `data-filters`,
 `data-generated`, `data-executed-by`, `data-empty`) so the JS targets them without

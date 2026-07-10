@@ -23,7 +23,7 @@ by the Phase 2 Python "brain" service.
 ## The pipeline
 
 ```
-Reports/*.rdl , Reports/*.md (Crystal docs)
+A report "bundle" (see below)
         │
         │  1a RESEARCH  ── report-researcher agent
         ▼
@@ -41,6 +41,26 @@ Two sub-phases are deliberately separated so a developer can **verify Claude's
 understanding (the thought file) before any code is generated**. A misread formula
 is cheap to fix in a thought file and expensive to debug in generated HTML.
 
+## A report is a *bundle*, not just a `.rdl`
+
+In a real .NET reporting app (e.g. `DotNetApp/PatientReports/`), an `.rdl`/`.rdlc` is
+often **skeletal** — just a Tablix with hard-coded header labels and no dataset, fields,
+query, or parameters. **The report's real logic lives in .NET code.** Treat each report as
+a bundle of correlated sources and read all that exist:
+
+| Concern | Where it actually lives | Example |
+|---|---|---|
+| Query / filters / joins / ordering | **Data service** (EF Core LINQ, ADO, Dapper) | `DataServices/PatientDataService.cs` |
+| Derived / formatted fields | Data service projection | `PatientName = FirstName + " " + LastName`; `IsInpatient ? "Yes" : "No"` |
+| Row shape & column set | **ViewModel** returned to the view | `Models/*ReportViewModel.cs` |
+| DB schema, keys, relationships | **EF entities + DbContext** | `Models/Patient.cs`, `Data/ApplicationDbContext.cs` |
+| Layout, headers, formatting, summaries | **Razor view** (and/or `.rdl`) | `Views/Reports/*.cshtml` |
+| Report wiring (name → data → view) | **Controller action** | `Controllers/ReportsController.cs` |
+| Legacy layout hints only | `.rdl` / `.rdlc` (may be near-empty) | `Reports/*.rdl` |
+
+The `.rdl` is a **secondary** input here — use it for layout/title hints. The **ViewModel +
+data service** are the source of truth for fields and business logic.
+
 ## When to use which sub-phase
 
 | User intent | Sub-phase | Agent | Output |
@@ -54,10 +74,15 @@ is cheap to fix in a thought file and expensive to debug in generated HTML.
 
 Always go **research → review → migrate**. Do not skip straight to HTML.
 
+0. **Discover the report bundle.** For a .NET app, start from the controller
+   (`Controllers/*ReportsController.cs`): each action is one report. Trace it to its data
+   service method, the ViewModel it returns, the Razor view, the EF entities/DbContext it
+   touches, and any matching `.rdl`. Collect these paths per report before researching.
 1. **Research.** For each report, delegate to the `report-researcher` agent (Agent tool,
    `subagent_type: report-researcher`), one agent per report so they run in parallel.
-   Give it the absolute path to the `.rdl` / Crystal doc and the target
-   `ReportThoughts/` directory. It writes `{report_name}.thought.md`.
+   Give it the **full bundle of file paths** (controller action, data service, ViewModel,
+   EF models, DbContext, Razor view, `.rdl`) and the target `ReportThoughts/` directory.
+   It writes `{report_name}.thought.md`.
 2. **Pause for review.** Present the thought file(s) to the user and ask them to confirm
    the extracted logic before generating code. This checkpoint is the whole point of the
    two-phase split — do not silently proceed to migration.
