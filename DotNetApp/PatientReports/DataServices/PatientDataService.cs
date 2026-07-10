@@ -149,6 +149,78 @@ public class PatientDataService
         return model;
     }
 
+    // Flat, denormalized result set (one row per lab; lab fields null when an
+    // event has no labs) that feeds the generated patient_clinical_summary.js
+    // template via window.REPORT_DATA. This is the same multi-table graph the
+    // SSRS report queries, projected to the template's row contract.
+    public async Task<List<ClinicalFlatRow>> GetClinicalFlatRowsAsync()
+    {
+        var events = await _context.TransplantEvents
+            .AsNoTracking()
+            .Include(e => e.Provider)
+            .Include(e => e.LabResults)
+            .Include(e => e.Patient).ThenInclude(p => p.Facility)
+            .Include(e => e.Patient).ThenInclude(p => p.Diagnoses)
+            .Include(e => e.Patient).ThenInclude(p => p.Medications)
+            .ToListAsync();
+
+        var rows = new List<ClinicalFlatRow>();
+
+        foreach (var e in events)
+        {
+            var p = e.Patient;
+            var f = p.Facility;
+            var primaryDx = PrimaryDiagnosis(p);
+            var activeMeds = p.Medications.Count(m => m.IsActive);
+            var providerName = e.Provider != null ? e.Provider.FirstName + " " + e.Provider.LastName : "-";
+            var specialty = e.Provider?.Specialty ?? string.Empty;
+
+            ClinicalFlatRow Base() => new ClinicalFlatRow
+            {
+                FacilityName = f.Name,
+                FacilityCity = f.City,
+                FacilityState = f.State,
+                PatientId = p.Id,
+                Mrn = p.MRN,
+                PatientName = p.FirstName + " " + p.LastName,
+                Gender = p.Gender,
+                DateOfBirth = p.DateOfBirth,
+                HeightCm = p.HeightCm,
+                WeightKg = p.WeightKg,
+                Status = p.Status,
+                EventId = e.EventId,
+                DonorType = e.DonorType,
+                DateOfVisit = e.DateOfVisit,
+                DateOfPreviousVisit = e.DateOfPreviousVisit,
+                IsInpatient = e.IsInpatient,
+                ProviderName = providerName,
+                Specialty = specialty,
+                PrimaryDiagnosis = primaryDx,
+                ActiveMedCount = activeMeds
+            };
+
+            if (e.LabResults.Any())
+            {
+                foreach (var lr in e.LabResults.OrderBy(l => l.TestName))
+                {
+                    var row = Base();
+                    row.LabTestName = lr.TestName;
+                    row.LabValue = lr.Value;
+                    row.LabUnit = lr.Unit;
+                    row.RefLow = lr.ReferenceLow;
+                    row.RefHigh = lr.ReferenceHigh;
+                    rows.Add(row);
+                }
+            }
+            else
+            {
+                rows.Add(Base()); // event with no labs (LEFT JOIN)
+            }
+        }
+
+        return rows;
+    }
+
     private static int CalculateAge(DateTime dob)
     {
         var today = DateTime.Today;
