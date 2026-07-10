@@ -26,6 +26,15 @@
     <div class="col-auto">
         <button type="submit" class="btn btn-primary">Generate Report</button>
     </div>
+    @if (!string.IsNullOrEmpty(Model.SelectedReport))
+    {
+        <div class="col-auto">
+            <a class="btn btn-outline-danger"
+               asp-action="Download" asp-route-report="@Model.SelectedReport">
+                &#128190; Download PDF
+            </a>
+        </div>
+    }
 </form>
 
 @if (string.IsNullOrEmpty(Model.SelectedReport))
