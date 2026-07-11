@@ -41,20 +41,11 @@
 {
     <div class="alert alert-secondary">Select a report above and click <strong>Generate Report</strong>.</div>
 }
-else if (Model.SelectedReport == "patient" && Model.PatientRows != null)
+else if (Model.SelectedReport is "patient" or "transplant" or "clinical")
 {
-    <h3 class="mb-3">Patient Report</h3>
-    @await Html.PartialAsync("_PatientReport", Model.PatientRows)
-}
-else if (Model.SelectedReport == "transplant" && Model.TransplantRows != null)
-{
-    <h3 class="mb-3">Transplant Event Report</h3>
-    @await Html.PartialAsync("_TransplantEventReport", Model.TransplantRows)
-}
-else if (Model.SelectedReport == "clinical" && Model.Clinical != null)
-{
-    <h3 class="mb-3">Patient Clinical Summary</h3>
-    @await Html.PartialAsync("_ClinicalSummary", Model.Clinical)
+    <iframe src="@Url.Action("RdlView", new { report = Model.SelectedReport })"
+            style="width:100%; height:900px; border:1px solid #ccc;"
+            title="Report"></iframe>
 }
 else
 {

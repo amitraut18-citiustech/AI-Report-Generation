@@ -21,8 +21,6 @@ out/
 ## ASP.NET Core
 appsettings.Development.json
 
- 
-
 ## Logs
 *.log
 

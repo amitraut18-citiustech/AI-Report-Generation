@@ -1,47 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2008/01/reportdefinition" xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">
+  <DataSources>
+    <DataSource Name="TransplantDataSource">
+      <ConnectionProperties>
+        <DataProvider>SQL</DataProvider>
+        <ConnectString>Data Source=(local);Initial Catalog=PatientReports;Integrated Security=SSPI</ConnectString>
+      </ConnectionProperties>
+      <rd:SecurityType>Integrated</rd:SecurityType>
+      <rd:DataSourceID>00000000-0000-0000-0000-000000000103</rd:DataSourceID>
+    </DataSource>
+  </DataSources>
+  <DataSets>
+    <DataSet Name="dsTransplantEvent">
+      <Query>
+        <DataSourceName>TransplantDataSource</DataSourceName>
+        <CommandText>SELECT (p.FirstName + ' ' + p.LastName) AS PatientName,
+    te.DateOfVisit, te.DateOfPreviousVisit, te.TransplantDate, te.InfusionDate,
+    te.EventId, te.TransplantNumber, te.IsInpatient
+FROM TransplantEvents te
+    INNER JOIN Patients p ON p.Id = te.PatientId
+ORDER BY te.DateOfVisit</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="PatientName"><DataField>PatientName</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="DateOfVisit"><DataField>DateOfVisit</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="DateOfPreviousVisit"><DataField>DateOfPreviousVisit</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="TransplantDate"><DataField>TransplantDate</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="InfusionDate"><DataField>InfusionDate</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
+        <Field Name="EventId"><DataField>EventId</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="TransplantNumber"><DataField>TransplantNumber</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="IsInpatient"><DataField>IsInpatient</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="TotalTransplants"><DataField>TotalTransplants</DataField><rd:TypeName>System.Int32</rd:TypeName></Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
   <Body>
     <ReportItems>
       <Textbox Name="Title">
         <CanGrow>true</CanGrow>
         <Height>0.6in</Height>
         <Width>7in</Width>
-        <Value>Transplant Event Report</Value>
-        <Style>
-          <FontSize>16pt</FontSize>
-          <FontWeight>Bold</FontWeight>
-          <TextAlign>Center</TextAlign>
-        </Style>
+        <Paragraphs>
+          <Paragraph>
+            <TextRuns>
+              <TextRun>
+                <Value>Transplant Event Report</Value>
+                <Style>
+                  <FontFamily>Segoe UI</FontFamily>
+                  <FontSize>16pt</FontSize>
+                  <FontWeight>Bold</FontWeight>
+                  <Color>#1f3864</Color>
+                </Style>
+              </TextRun>
+            </TextRuns>
+            <Style><TextAlign>Center</TextAlign></Style>
+          </Paragraph>
+        </Paragraphs>
+        <Style />
       </Textbox>
       <Tablix Name="EventTable">
         <Height>1.2in</Height>
-        <Width>7in</Width>
+        <Width>10in</Width>
         <Top>0.7in</Top>
         <Left>0in</Left>
         <TablixBody>
           <TablixColumns>
-            <TablixColumn><Width>1.2in</Width></TablixColumn>
+            <TablixColumn><Width>1.3in</Width></TablixColumn>
+            <TablixColumn><Width>1.1in</Width></TablixColumn>
+            <TablixColumn><Width>1.1in</Width></TablixColumn>
+            <TablixColumn><Width>1.1in</Width></TablixColumn>
+            <TablixColumn><Width>1.1in</Width></TablixColumn>
+            <TablixColumn><Width>0.9in</Width></TablixColumn>
+            <TablixColumn><Width>1.3in</Width></TablixColumn>
+            <TablixColumn><Width>1.1in</Width></TablixColumn>
             <TablixColumn><Width>1in</Width></TablixColumn>
-            <TablixColumn><Width>1.2in</Width></TablixColumn>
-            <TablixColumn><Width>1in</Width></TablixColumn>
-            <TablixColumn><Width>1in</Width></TablixColumn>
-            <TablixColumn><Width>1in</Width></TablixColumn>
-            <TablixColumn><Width>1in</Width></TablixColumn>
-            <TablixColumn><Width>0.6in</Width></TablixColumn>
           </TablixColumns>
           <TablixRows>
             <TablixRow>
+              <Height>0.35in</Height>
+              <TablixCells>
+                <TablixCell><CellContents><Textbox Name="hPatient"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Patient</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>#212529</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hVisit"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Date of Visit</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>#212529</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hPrevVisit"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Previous Visit</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>#212529</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hTransplantDate"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Transplant Date</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>#212529</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hInfusionDate"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Infusion Date</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>#212529</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hEventId"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Event ID</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>#212529</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hTransplantNumber"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Transplant Number</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>#212529</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hTotalTransplants"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Total Transplants</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>#212529</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hInpatient"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Inpatient</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>#212529</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+              </TablixCells>
+            </TablixRow>
+            <TablixRow>
               <Height>0.3in</Height>
               <TablixCells>
-                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Patient</Value></Textbox></CellContents></TablixCell>
-                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Date of Visit</Value></Textbox></CellContents></TablixCell>
-                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Previous Visit</Value></Textbox></CellContents></TablixCell>
-                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Transplant Date</Value></Textbox></CellContents></TablixCell>
-                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Infusion Date</Value></Textbox></CellContents></TablixCell>
-                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Event ID</Value></Textbox></CellContents></TablixCell>
-                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Transplant Number</Value></Textbox></CellContents></TablixCell>
-                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Total Transplants</Value></Textbox></CellContents></TablixCell>
-                <TablixCell><CellContents><Textbox><CanGrow>true</CanGrow><Value>Inpatient</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dPatient"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!PatientName.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>=IIF(RowNumber(Nothing) Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dVisit"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Format(Fields!DateOfVisit.Value, "MM/dd/yyyy")</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>=IIF(RowNumber(Nothing) Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dPrevVisit"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Format(Fields!DateOfPreviousVisit.Value, "MM/dd/yyyy")</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>=IIF(RowNumber(Nothing) Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dTransplantDate"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Format(Fields!TransplantDate.Value, "MM/dd/yyyy")</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>=IIF(RowNumber(Nothing) Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dInfusionDate"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Format(Fields!InfusionDate.Value, "MM/dd/yyyy")</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>=IIF(RowNumber(Nothing) Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dEventId"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!EventId.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>=IIF(RowNumber(Nothing) Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dTransplantNumber"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!TransplantNumber.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>=IIF(RowNumber(Nothing) Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dTotalTransplants"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!TotalTransplants.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>=IIF(RowNumber(Nothing) Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dInpatient"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!IsInpatient.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><Style><BackgroundColor>=IIF(RowNumber(Nothing) Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor><PaddingLeft>6pt</PaddingLeft><VerticalAlign>Middle</VerticalAlign></Style></Textbox></CellContents></TablixCell>
               </TablixCells>
             </TablixRow>
           </TablixRows>
@@ -65,20 +125,28 @@
               <KeepWithGroup>After</KeepWithGroup>
               <RepeatOnNewPage>true</RepeatOnNewPage>
             </TablixMember>
+            <TablixMember>
+              <Group Name="Details" />
+            </TablixMember>
           </TablixMembers>
         </TablixRowHierarchy>
         <RepeatColumnHeaders>true</RepeatColumnHeaders>
         <RepeatRowHeaders>true</RepeatRowHeaders>
       </Tablix>
     </ReportItems>
+    <Height>2in</Height>
   </Body>
-  <Width>7.5in</Width>
+  <Width>10.5in</Width>
   <Page>
     <PageHeader>
       <Height>0.5in</Height>
       <PrintOnFirstPage>true</PrintOnFirstPage>
       <PrintOnLastPage>true</PrintOnLastPage>
     </PageHeader>
+    <PageWidth>11in</PageWidth>
+    <PageHeight>8.5in</PageHeight>
+    <LeftMargin>0.25in</LeftMargin>
+    <RightMargin>0.25in</RightMargin>
   </Page>
   <AutoRefresh>0</AutoRefresh>
   <rd:ReportUnitType>Inch</rd:ReportUnitType>

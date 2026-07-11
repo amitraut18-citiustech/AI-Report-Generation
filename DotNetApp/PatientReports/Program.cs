@@ -16,6 +16,11 @@ Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddScoped<PatientDataService>();
+builder.Services.AddHttpClient<RdlRenderClient>(client =>
+{
+    var baseUrl = builder.Configuration["RdlRenderService:BaseUrl"] ?? "http://localhost:5250/";
+    client.BaseAddress = new Uri(baseUrl);
+});
 
 var app = builder.Build();
 
