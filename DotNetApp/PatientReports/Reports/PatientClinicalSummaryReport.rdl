@@ -31,14 +31,13 @@
     f.Name AS FacilityName, f.City AS FacilityCity, f.State AS FacilityState,
     p.Id AS PatientId, p.MRN, (p.FirstName + ' ' + p.LastName) AS PatientName,
     p.Gender, p.DateOfBirth, p.HeightCm, p.WeightKg, p.Status,
-    te.EventId, te.TransplantNumber, te.DonorType, te.DateOfVisit, te.DateOfPreviousVisit,
-    te.TransplantDate, te.InfusionDate, te.DischargeDate, te.IsInpatient,
+    te.EventId, te.DonorType, te.DateOfVisit, te.DateOfPreviousVisit, te.IsInpatient,
     (pr.FirstName + ' ' + pr.LastName) AS ProviderName, pr.Specialty,
     (SELECT TOP 1 d.Description FROM Diagnoses d WHERE d.PatientId = p.Id
         ORDER BY CASE d.Severity WHEN 'Severe' THEN 3 WHEN 'Moderate' THEN 2 ELSE 1 END DESC, d.DiagnosedDate DESC) AS PrimaryDiagnosis,
     (SELECT COUNT(*) FROM Medications m WHERE m.PatientId = p.Id AND m.IsActive = 1) AS ActiveMedCount,
     lr.TestName AS LabTestName, lr.Value AS LabValue, lr.Unit AS LabUnit,
-    lr.ReferenceLow AS RefLow, lr.ReferenceHigh AS RefHigh, lr.TakenDate AS LabTakenDate
+    lr.ReferenceLow AS RefLow, lr.ReferenceHigh AS RefHigh
 FROM Patients p
     INNER JOIN Facilities f ON f.Id = p.FacilityId
     INNER JOIN TransplantEvents te ON te.PatientId = p.Id
@@ -61,13 +60,9 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
         <Field Name="WeightKg"><DataField>WeightKg</DataField><rd:TypeName>System.Double</rd:TypeName></Field>
         <Field Name="Status"><DataField>Status</DataField><rd:TypeName>System.String</rd:TypeName></Field>
         <Field Name="EventId"><DataField>EventId</DataField><rd:TypeName>System.String</rd:TypeName></Field>
-        <Field Name="TransplantNumber"><DataField>TransplantNumber</DataField><rd:TypeName>System.String</rd:TypeName></Field>
         <Field Name="DonorType"><DataField>DonorType</DataField><rd:TypeName>System.String</rd:TypeName></Field>
         <Field Name="DateOfVisit"><DataField>DateOfVisit</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
         <Field Name="DateOfPreviousVisit"><DataField>DateOfPreviousVisit</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
-        <Field Name="TransplantDate"><DataField>TransplantDate</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
-        <Field Name="InfusionDate"><DataField>InfusionDate</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
-        <Field Name="DischargeDate"><DataField>DischargeDate</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
         <Field Name="IsInpatient"><DataField>IsInpatient</DataField><rd:TypeName>System.Boolean</rd:TypeName></Field>
         <Field Name="ProviderName"><DataField>ProviderName</DataField><rd:TypeName>System.String</rd:TypeName></Field>
         <Field Name="Specialty"><DataField>Specialty</DataField><rd:TypeName>System.String</rd:TypeName></Field>
@@ -78,7 +73,6 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
         <Field Name="LabUnit"><DataField>LabUnit</DataField><rd:TypeName>System.String</rd:TypeName></Field>
         <Field Name="RefLow"><DataField>RefLow</DataField><rd:TypeName>System.Double</rd:TypeName></Field>
         <Field Name="RefHigh"><DataField>RefHigh</DataField><rd:TypeName>System.Double</rd:TypeName></Field>
-        <Field Name="LabTakenDate"><DataField>LabTakenDate</DataField><rd:TypeName>System.DateTime</rd:TypeName></Field>
         <Field Name="Age"><Value>=Floor(DateDiff(DateInterval.Day, Fields!DateOfBirth.Value, Today()) / 365.25)</Value></Field>
         <Field Name="BMI"><Value>=IIF(Fields!HeightCm.Value &gt; 0, Round(Fields!WeightKg.Value / ((Fields!HeightCm.Value / 100) * (Fields!HeightCm.Value / 100)), 1), 0)</Value></Field>
         <Field Name="DaysSincePreviousVisit"><Value>=DateDiff(DateInterval.Day, Fields!DateOfPreviousVisit.Value, Fields!DateOfVisit.Value)</Value></Field>
@@ -98,7 +92,7 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
                 <TextRuns>
                   <TextRun>
                     <Value>Patient Clinical Summary Report</Value>
-                    <Style><FontFamily>Segoe UI</FontFamily><FontSize>18pt</FontSize><FontWeight>Bold</FontWeight><Color>#1f3864</Color></Style>
+                    <Style><FontFamily>Segoe UI</FontFamily><FontSize>16pt</FontSize><FontWeight>Bold</FontWeight><Color>#1f3864</Color></Style>
                   </TextRun>
                 </TextRuns>
                 <Style />
@@ -166,12 +160,12 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
                 <TablixRow>
                   <Height>0.28in</Height>
                   <TablixCells>
-                    <TablixCell><CellContents><Textbox Name="hFac"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Facility</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>hFac</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor><PaddingLeft>3pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="hPat"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value># Patients</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hPat</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="hEvt"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value># Events</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hEvt</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="hAge"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Avg Age</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hAge</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="hInp"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Inpatient Events</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hInp</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="hOor"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Out-of-range Labs</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hOor</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#1f3864</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hFac"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Facility</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>hFac</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor><PaddingLeft>3pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hPat"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value># Patients</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hPat</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hEvt"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value># Events</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hEvt</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hAge"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Avg Age</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hAge</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hInp"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Inpatient Events</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hInp</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="hOor"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Out-of-range Labs</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>hOor</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
                   </TablixCells>
                 </TablixRow>
                 <TablixRow>
@@ -256,15 +250,15 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
                 <TablixRow>
                   <Height>0.26in</Height>
                   <TablixCells>
-                    <TablixCell><CellContents><Textbox Name="tEvent"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Event</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tEvent</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor><PaddingLeft>3pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="tVisit"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Visit Date</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tVisit</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="tProv"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Provider</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tProv</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="tDonor"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Donor</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tDonor</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="tSetting"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Setting</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tSetting</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="tTest"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Test</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tTest</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="tResult"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Result</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tResult</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="tRef"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Reference</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tRef</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="tFlag"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Flag</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tFlag</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#2e5496</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tEvent"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Event</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tEvent</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor><PaddingLeft>3pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tVisit"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Visit Date</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tVisit</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tProv"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Provider</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tProv</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tDonor"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Donor</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tDonor</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tSetting"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Setting</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tSetting</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tTest"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Test</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tTest</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tResult"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Result</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tResult</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tRef"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Reference</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tRef</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="tFlag"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>Flag</Value><Style><FontWeight>Bold</FontWeight><Color>White</Color></Style></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>tFlag</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>#212529</BackgroundColor></Style></Textbox></CellContents></TablixCell>
                   </TablixCells>
                 </TablixRow>
                 <TablixRow>
@@ -284,15 +278,15 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
                 <TablixRow>
                   <Height>0.24in</Height>
                   <TablixCells>
-                    <TablixCell><CellContents><Textbox Name="dEvent"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!EventId.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dEvent</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><PaddingLeft>3pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="dVisit"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Format(Fields!DateOfVisit.Value, "MM/dd/yyyy")</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dVisit</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="dProv"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!ProviderName.Value &amp; " (" &amp; Fields!Specialty.Value &amp; ")"</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dProv</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="dDonor"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!DonorType.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dDonor</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="dSetting"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(Fields!IsInpatient.Value, "Inpatient", "Outpatient")</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dSetting</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border><BackgroundColor>=IIF(Fields!IsInpatient.Value, "#fff3cd", "Transparent")</BackgroundColor></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="dTest"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(IsNothing(Fields!LabTestName.Value), "-", Fields!LabTestName.Value)</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dTest</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="dResult"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(IsNothing(Fields!LabValue.Value), "-", CStr(Fields!LabValue.Value) &amp; " " &amp; Fields!LabUnit.Value)</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dResult</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="dRef"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(IsNothing(Fields!RefLow.Value), "-", CStr(Fields!RefLow.Value) &amp; " - " &amp; CStr(Fields!RefHigh.Value))</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dRef</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
-                    <TablixCell><CellContents><Textbox Name="dFlag"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!LabFlag.Value</Value><Style><Color>=IIF(Fields!LabFlag.Value = "OUT", "#b02a37", "#0f5132")</Color><FontWeight>=IIF(Fields!LabFlag.Value = "OUT", "Bold", "Normal")</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>dFlag</rd:DefaultName><Style><Border><Color>LightGrey</Color><Style>Solid</Style></Border></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dEvent"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!EventId.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dEvent</rd:DefaultName><Style><BackgroundColor>=IIF(RowNumber("dsClinical") Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor><PaddingLeft>6pt</PaddingLeft></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dVisit"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Format(Fields!DateOfVisit.Value, "MM/dd/yyyy")</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dVisit</rd:DefaultName><Style><BackgroundColor>=IIF(RowNumber("dsClinical") Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dProv"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!ProviderName.Value &amp; " (" &amp; Fields!Specialty.Value &amp; ")"</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dProv</rd:DefaultName><Style><BackgroundColor>=IIF(RowNumber("dsClinical") Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dDonor"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!DonorType.Value</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dDonor</rd:DefaultName><Style><BackgroundColor>=IIF(RowNumber("dsClinical") Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dSetting"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(Fields!IsInpatient.Value, "Inpatient", "Outpatient")</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dSetting</rd:DefaultName><Style><BackgroundColor>=IIF(Fields!IsInpatient.Value, "#fff3cd", IIF(RowNumber("dsClinical") Mod 2 = 1, "#F2F2F2", "White"))</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dTest"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(IsNothing(Fields!LabTestName.Value), "-", Fields!LabTestName.Value)</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dTest</rd:DefaultName><Style><BackgroundColor>=IIF(RowNumber("dsClinical") Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dResult"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(IsNothing(Fields!LabValue.Value), "-", CStr(Fields!LabValue.Value) &amp; " " &amp; Fields!LabUnit.Value)</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dResult</rd:DefaultName><Style><BackgroundColor>=IIF(RowNumber("dsClinical") Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dRef"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=IIF(IsNothing(Fields!RefLow.Value), "-", CStr(Fields!RefLow.Value) &amp; " - " &amp; CStr(Fields!RefHigh.Value))</Value><Style /></TextRun></TextRuns><Style /></Paragraph></Paragraphs><rd:DefaultName>dRef</rd:DefaultName><Style><BackgroundColor>=IIF(RowNumber("dsClinical") Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor></Style></Textbox></CellContents></TablixCell>
+                    <TablixCell><CellContents><Textbox Name="dFlag"><CanGrow>true</CanGrow><Paragraphs><Paragraph><TextRuns><TextRun><Value>=Fields!LabFlag.Value</Value><Style><Color>=IIF(Fields!LabFlag.Value = "OUT", "#b02a37", "#0f5132")</Color><FontWeight>=IIF(Fields!LabFlag.Value = "OUT", "Bold", "Normal")</FontWeight></Style></TextRun></TextRuns><Style><TextAlign>Center</TextAlign></Style></Paragraph></Paragraphs><rd:DefaultName>dFlag</rd:DefaultName><Style><BackgroundColor>=IIF(RowNumber("dsClinical") Mod 2 = 1, "#F2F2F2", "White")</BackgroundColor></Style></Textbox></CellContents></TablixCell>
                   </TablixCells>
                 </TablixRow>
               </TablixRows>
@@ -318,6 +312,7 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
                     <SortExpression><Value>=Fields!FacilityName.Value</Value></SortExpression>
                   </SortExpressions>
                   <TablixMembers>
+                    <TablixMember />
                     <TablixMember>
                       <Group Name="grpPatient">
                         <GroupExpressions>
@@ -328,6 +323,7 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
                         <SortExpression><Value>=Fields!PatientName.Value</Value></SortExpression>
                       </SortExpressions>
                       <TablixMembers>
+                        <TablixMember />
                         <TablixMember>
                           <Group Name="grpDetail">
                             <GroupExpressions>
@@ -407,7 +403,7 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
           <Style />
         </PageFooter>
         <PageHeight>11in</PageHeight>
-        <PageWidth>8.5in</PageWidth>
+        <PageWidth>9.5in</PageWidth>
         <LeftMargin>0.5in</LeftMargin>
         <RightMargin>0.5in</RightMargin>
         <TopMargin>0.5in</TopMargin>
@@ -466,12 +462,13 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
   </ReportParameters>
   <ReportParametersLayout>
     <GridLayoutDefinition>
-      <NumberOfColumns>3</NumberOfColumns>
+      <NumberOfColumns>4</NumberOfColumns>
       <NumberOfRows>1</NumberOfRows>
       <CellDefinitions>
         <CellDefinition><ColumnIndex>0</ColumnIndex><RowIndex>0</RowIndex><ParameterName>FromDate</ParameterName></CellDefinition>
         <CellDefinition><ColumnIndex>1</ColumnIndex><RowIndex>0</RowIndex><ParameterName>ToDate</ParameterName></CellDefinition>
         <CellDefinition><ColumnIndex>2</ColumnIndex><RowIndex>0</RowIndex><ParameterName>Status</ParameterName></CellDefinition>
+        <CellDefinition><ColumnIndex>3</ColumnIndex><RowIndex>0</RowIndex><ParameterName>rptUser</ParameterName></CellDefinition>
       </CellDefinitions>
     </GridLayoutDefinition>
   </ReportParametersLayout>

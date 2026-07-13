@@ -9,6 +9,7 @@ public class ReportsController : Controller
 {
     private readonly PatientDataService _dataService;
     private readonly PdfReportService _pdfService;
+    private readonly RdlRenderClient _rdlRenderClient;
     private readonly IWebHostEnvironment _env;
     private readonly IConfiguration _config;
 
@@ -17,10 +18,11 @@ public class ReportsController : Controller
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public ReportsController(PatientDataService dataService, PdfReportService pdfService, IWebHostEnvironment env, IConfiguration config)
+    public ReportsController(PatientDataService dataService, PdfReportService pdfService, RdlRenderClient rdlRenderClient, IWebHostEnvironment env, IConfiguration config)
     {
         _dataService = dataService;
         _pdfService = pdfService;
+        _rdlRenderClient = rdlRenderClient;
         _env = env;
         _config = config;
     }
@@ -52,25 +54,16 @@ public class ReportsController : Controller
     }
 
     // Unified reports hub: a report dropdown + a single "Generate Report" button.
-    // The selected report is rendered below the selector.
-    public async Task<IActionResult> Index(string? report)
+    // The selected report renders below the selector via the RdlView iframe.
+    // fromDate/toDate only apply to the transplant report's visit-date filter.
+    public IActionResult Index(string? report, string? fromDate, string? toDate)
     {
-        var vm = new ReportsHubViewModel { SelectedReport = report };
-
-        switch (report)
+        return View(new ReportsHubViewModel
         {
-            case "patient":
-                vm.PatientRows = await _dataService.GetPatientReportAsync();
-                break;
-            case "transplant":
-                vm.TransplantRows = await _dataService.GetTransplantEventReportAsync();
-                break;
-            case "clinical":
-                vm.Clinical = await _dataService.GetClinicalSummaryAsync();
-                break;
-        }
-
-        return View(vm);
+            SelectedReport = report,
+            FromDate = fromDate ?? "2026-01-01",
+            ToDate = toDate ?? "2026-12-31",
+        });
     }
 
     // HTML-based reporting hub: proves the SSRS reports can be replaced by the
@@ -161,6 +154,44 @@ public class ReportsController : Controller
         }
 
         return File(pdf, "application/pdf", fileName);
+    }
+
+    // Renders the report from its real .rdl definition via RdlRenderService (see
+    // that project for why RDL rendering can't run in-process on .NET 8), and
+    // serves it inline (no Content-Disposition) for the <iframe> on the Reports
+    // hub page.
+    public async Task<IActionResult> RdlView(string report, string? fromDate, string? toDate)
+    {
+        byte[] pdf;
+        switch (report)
+        {
+            case "patient":
+                pdf = await _rdlRenderClient.RenderAsync("patient", await _dataService.GetPatientReportAsync());
+                break;
+            case "transplant":
+                var transplantParameters = new Dictionary<string, string>
+                {
+                    ["FromDate"] = fromDate ?? "2026-01-01",
+                    ["ToDate"] = toDate ?? "2026-12-31",
+                };
+                pdf = await _rdlRenderClient.RenderAsync("transplant", await _dataService.GetTransplantEventReportAsync(), transplantParameters);
+                break;
+            case "clinical":
+                var rows = await _dataService.GetClinicalFlatRowsAsync();
+                var parameters = new Dictionary<string, string>
+                {
+                    ["FromDate"] = "2026-01-01",
+                    ["ToDate"] = "2026-12-31",
+                    ["Status"] = "All",
+                    ["rptUser"] = User?.Identity?.Name ?? "system",
+                };
+                pdf = await _rdlRenderClient.RenderAsync("clinical", rows, parameters);
+                break;
+            default:
+                return NotFound();
+        }
+
+        return File(pdf, "application/pdf");
     }
 
     // Kept for backward compatibility / direct links; both render the shared partials.

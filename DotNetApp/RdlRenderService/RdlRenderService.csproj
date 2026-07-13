@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <!--
+    This service exists only because rendering real SSRS/RDLC .rdl files requires
+    Microsoft's ReportViewer engine, which depends on System.CodeDom shelling out to
+    the classic .NET Framework VB compiler (vbc.exe). That compiler doesn't exist
+    under .NET 8, so RDL rendering is hosted here on .NET Framework 4.8 instead, and
+    the main PatientReports app (net8.0) calls this over HTTP.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ReportingServices.ReportViewerControl.WebForms" Version="150.1652.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Web" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\PatientReports\Reports\PatientReport.rdl" Link="Reports\PatientReport.rdl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\PatientReports\Reports\TransplantEventReport.rdl" Link="Reports\TransplantEventReport.rdl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\PatientReports\Reports\PatientClinicalSummaryReport.rdl" Link="Reports\PatientClinicalSummaryReport.rdl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
