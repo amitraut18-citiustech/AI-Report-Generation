@@ -18,63 +18,64 @@ developer approves before migration proceeds — accuracy and completeness matte
 than brevity.
 
 ## Inputs you will be given
-A report is a **bundle of correlated source files**, not just an `.rdl`. You will be given
-some subset of these — read every one provided, and use Glob/Grep to find closely related
-files that were not listed (e.g. the ViewModel a data-service method returns):
+**First read the application migration context** — by convention `ReportThoughts/_CONTEXT.md`
+(or a `_CONTEXT`/`README` in the thought or HTML folder). It tells you this project's stack,
+its report file map, and its rendering/filter model. If none exists, infer it from the
+codebase (and consider writing one). This agent is host-agnostic; the context supplies the
+project specifics.
 
-- **Controller action** (`Controllers/*ReportsController.cs`) — names the report and wires
-  data service → ViewModel → view.
-- **Data service** (`DataServices/*.cs`) — the real query: EF Core LINQ (or ADO/Dapper),
-  filters, `Include` joins, `OrderBy`, and projections into the ViewModel. **This is the
-  primary source of business logic.**
-- **ViewModel** (`Models/*ReportViewModel.cs`) — the exact row shape and column set. **This
-  is the primary source of the fields list.**
-- **EF entities + DbContext** (`Models/*.cs`, `Data/ApplicationDbContext.cs`) — the schema,
-  keys, relationships, and constraints behind the query.
-- **Razor view** (`Views/**/*.cshtml`) — the rendered layout: title, column order/headers,
-  formatting (e.g. `ToShortDateString()`), and summaries (e.g. `Total: @Model.Count()`).
-- **`.rdl` / `.rdlc`** — legacy layout definition. **Often skeletal** (hard-coded header
-  labels, no dataset/fields/query). Use it only for layout/title hints; do not treat an
-  empty RDL as "the report has no fields."
-- A Crystal Reports `.md` doc, if that is the legacy format instead of `.rdl`.
-- The absolute path to the `ReportThoughts/` output directory.
-- Optionally a report key. If not given, derive one from the controller action / report
-  name: drop a trailing `Report`, convert to `snake_case`
-  (e.g. `PatientReport` → `patient`; `TransplantEventReport` → `transplant_event`).
+A report is a **bundle of correlated sources**, not just an `.rdl`. You will be given some
+subset — read every one provided, and use Glob/Grep to find related files the context
+implies. Across any stack, find whatever exists for these concerns:
+
+- **Legacy report definition** — the `.rdl`/`.rdlc` (or a Crystal `.md` doc). **Often
+  skeletal** (hard-coded header labels, no dataset/fields/query) — then it's a layout/title
+  hint only; **sometimes rich** (real dataset, query, `Code`, parameters) — then it's a
+  primary source too. Never treat an empty RDL as "the report has no fields."
+- **Report wiring** — where the report name maps to its data + output (e.g. a route/action).
+- **Data access** — the query: sources, joins, filters, ordering, and the projection into
+  the row shape. **Primary source of business logic.**
+- **Row shape / columns** — the view model or DTO the renderer receives. **Primary source
+  of the fields list.**
+- **Data model / schema** — entities, keys, relationships behind the query.
+- **View / layout** — title, column order/headers, per-column formatting, summaries.
+
+Also given: the `ReportThoughts/` output directory, and optionally a report key. If no key,
+derive one from the report name: drop a trailing `Report`, convert to `snake_case`
+(e.g. `PatientReport` → `patient`; `TransplantEventReport` → `transplant_event`).
 
 ## Procedure
 
-1. **Read the whole bundle.** Read every file you were given, fully. Then close the gaps
-   with Glob/Grep: from the controller action find the data-service method it calls; from
-   that method find the ViewModel type and the EF entities/`DbContext` it queries; find the
-   Razor view whose `@model` matches the ViewModel. Prefer the .NET code over the `.rdl` —
-   the `.rdl` here is usually a near-empty layout stub.
+1. **Read the whole bundle.** Read every file you were given, fully, plus the app context.
+   Close gaps with Glob/Grep: from the report wiring find the data method; from it the row
+   shape and the data model; find the view for that row shape. Prefer the host code over a
+   skeletal `.rdl`; when the `.rdl` is rich, use it as a primary source too.
 
-2. **Extract, section by section** (see the .NET cheatsheet below):
-   - **Source files** — list every file in the bundle with its role (controller action,
-     data service method, ViewModel, EF entities, DbContext, Razor view, `.rdl`).
-   - **Data access** — the exact query from the data-service method: source `DbSet`(s),
-     `Include`/joins, `Where` filters, `OrderBy`/`ThenBy`, and the projection into the
-     ViewModel. Capture derived/computed fields precisely
-     (`PatientName = FirstName + " " + LastName`; `IsInpatient ? "Yes" : "No"`) and any
-     `AsNoTracking`/read-only intent.
-   - **Fields** — from the **ViewModel** (authoritative), one row per property: name, .NET
-     type, and meaning. Note which are direct columns vs. derived in the projection.
-   - **Business logic** — filters, ordering, aggregations/counts (e.g. a `Model.Count()`
-     summary in the view), formatting rules, and any conditional display. Decode any legacy
-     RDL expressions too (`=Parameters!X.Value-3` → "reporting year minus 3", `IIF`/`CASE`,
+2. **Extract, section by section** (map host idioms via the context's file map):
+   - **Source files** — list every file in the bundle with its role.
+   - **Data access** — the exact query: source table(s)/set(s), joins, filters, ordering,
+     and the projection into the row shape. Capture derived/computed fields precisely
+     (e.g. full-name concatenation; boolean → `"Yes"`/`"No"`) and any read-only intent.
+   - **Fields** — from the row shape (view model / DTO), authoritative: one row per field —
+     name, type, meaning. Note which are direct columns vs. derived in the projection.
+   - **Business logic** — filters, ordering, aggregations/counts (e.g. a row-count summary
+     in the view), formatting rules, and any conditional display. Decode any RDL
+     expressions (`=Parameters!X.Value-3` → "reporting year minus 3", `IIF`/`CASE`,
      `Sum`/`Count`/`First`, `Globals!ExecutionTime`/`PageNumber`).
-   - **Grouping & sorting** — from the LINQ (`GroupBy`/`OrderBy`) and/or the view; and from
-     any `<TablixMember><Group>`/`<SortExpression>` in the RDL.
-   - **Parameters / filters** — controller/action parameters and query-string inputs, or
-     RDL `<ReportParameter>`s. Distinguish filter params (change the data) from chrome
-     params (`dateFormat`, `rptUser`). If the report currently takes none, say so.
-   - **Layout** — from the Razor view (and RDL for hints): title, column order and header
-     labels, per-column formatting (`ToShortDateString()` etc.), summary cards/banners
-     (e.g. `Total Transplants: @Model.Count()`), and footer content.
+   - **Grouping & sorting** — from the query and/or the view, and any
+     `<TablixMember><Group>`/`<SortExpression>` in the RDL.
+   - **Parameters / filters** — action/query-string parameters or RDL `<ReportParameter>`s.
+     Distinguish filter params (change the data) from chrome params (date format, run-by).
+     If the report takes none, say so. For each filter, capture its **control type** (date /
+     number / enum-with-values) and **exactly what it filters and how** (e.g. a min-age
+     param → row Age >= value). This matters because these reports usually render from *fed*
+     data: the RDL's SQL `WHERE` does **not** execute at render time, so the host applies
+     each filter in code before feeding rows. Note the data method that does the filtering.
+   - **Layout** — title, column order and header labels, per-column formatting, summary
+     cards/banners, and footer content (from the view, and the RDL for hints).
 
-3. **Resolve everything to plain English.** Never leave a raw LINQ projection or RDL
-   expression uninterpreted. Translate C#/EF and SSRS constructs to intent so a
+3. **Resolve everything to plain English.** Never leave a raw query projection or RDL
+   expression uninterpreted. Translate host-language and SSRS constructs to intent so a
    non-developer reviewer can confirm the logic.
 
 4. **Flag gaps honestly.** If the query, a derived field, or a formatting rule is ambiguous,
@@ -83,23 +84,21 @@ files that were not listed (e.g. the ViewModel a data-service method returns):
 5. **Write** `ReportThoughts/{report_key}.thought.md` using the template at
    [../skills/report-forge/references/thought-file-template.md](../skills/report-forge/references/thought-file-template.md).
 
-## .NET report cheatsheet
+## Where the logic lives
 
-| Where | What to extract |
-|---|---|
-| `Controllers/*ReportsController.cs` action | Report name, the data-service call, the view returned, any action parameters. |
-| `DataServices/*.cs` method | The query: `DbSet`s, `Include` joins, `Where`, `OrderBy`, and the `.Select(... new ViewModel { })` projection (incl. derived fields). |
-| `Models/*ReportViewModel.cs` | The row shape → the report's field/column list and types. |
-| `Models/*.cs` (entities) + `Data/ApplicationDbContext.cs` | Real schema: `HasKey`, `IsRequired`, `HasMaxLength`, `HasOne/WithMany/HasForeignKey` relationships. |
-| `Views/**/*.cshtml` | Layout: title, `<th>` order/labels, `@item.X.ToShortDateString()` formatting, `@Model.Count()`/aggregate summaries. |
+The report's business logic lives in the host application's code; the exact files and
+idioms depend on the stack. Use the migration-context doc's file map to locate this
+project's data access (→ Data access + Fields), its data model/schema (→ Database Context),
+and its view (→ Layout). Extract the query + projection, the schema/relationships, and the
+view's title/columns/formatting/summaries.
 
-## RDL cheatsheet (legacy layout hints — often skeletal here)
+## RDL cheatsheet (legacy layout hints — often skeletal)
 
 | RDL element | Meaning |
 |---|---|
-| `<DataSource>` / `<ConnectString>` | DB connection. `/* Not Used */` ⇒ data fed by .NET. |
+| `<DataSource>` / `<ConnectString>` | DB connection. `/* Not Used */` ⇒ data fed by the host. |
 | `<DataSet><Fields><Field>` | Report fields + `rd:TypeName` — **frequently absent** in these stubs. |
-| `<Query><CommandText>` | Embedded SQL, if any (usually none — logic is in the data service). |
+| `<Query><CommandText>` | Embedded SQL, if any (frequently unused — logic is in the host code). |
 | `<Tablix>` | Table/matrix: column widths, hard-coded header labels, detail cells. |
 | `<TablixMember><Group>` / `<SortExpression>` | Grouping / sort. |
 | `<ReportParameter>` | `<DataType>`, `<DefaultValue>`, `<Prompt>`. |

@@ -23,7 +23,7 @@
             }
         </select>
     </div>
-    @if (Model.SelectedReport == "transplant")
+    @if (Model.SelectedReport is "transplant" or "clinical")
     {
         <div class="col-auto">
             <label for="fromDate" class="form-label fw-semibold">Visit date from</label>
@@ -32,6 +32,17 @@
         <div class="col-auto">
             <label for="toDate" class="form-label fw-semibold">Visit date to</label>
             <input type="date" id="toDate" name="toDate" class="form-control" value="@Model.ToDate" />
+        </div>
+    }
+    @if (Model.SelectedReport == "clinical")
+    {
+        <div class="col-auto">
+            <label for="minAge" class="form-label fw-semibold">Min age</label>
+            <input type="number" id="minAge" name="minAge" min="0" max="120" style="width:6rem" class="form-control" value="@Model.MinAge" placeholder="0" />
+        </div>
+        <div class="col-auto">
+            <label for="maxAge" class="form-label fw-semibold">Max age</label>
+            <input type="number" id="maxAge" name="maxAge" min="0" max="120" style="width:6rem" class="form-control" value="@Model.MaxAge" placeholder="120" />
         </div>
     }
     <div class="col-auto">
@@ -54,7 +65,7 @@
 }
 else if (Model.SelectedReport is "patient" or "transplant" or "clinical")
 {
-    <iframe src="@Url.Action("RdlView", new { report = Model.SelectedReport, fromDate = Model.FromDate, toDate = Model.ToDate })"
+    <iframe src="@Url.Action("RdlView", new { report = Model.SelectedReport, fromDate = Model.FromDate, toDate = Model.ToDate, minAge = Model.MinAge, maxAge = Model.MaxAge })"
             style="width:100%; height:900px; border:1px solid #ccc;"
             title="Report"></iframe>
 }

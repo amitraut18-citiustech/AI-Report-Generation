@@ -56,13 +56,15 @@ public class ReportsController : Controller
     // Unified reports hub: a report dropdown + a single "Generate Report" button.
     // The selected report renders below the selector via the RdlView iframe.
     // fromDate/toDate only apply to the transplant report's visit-date filter.
-    public IActionResult Index(string? report, string? fromDate, string? toDate)
+    public IActionResult Index(string? report, string? fromDate, string? toDate, string? minAge, string? maxAge)
     {
         return View(new ReportsHubViewModel
         {
             SelectedReport = report,
             FromDate = fromDate ?? "2026-01-01",
             ToDate = toDate ?? "2026-12-31",
+            MinAge = minAge,
+            MaxAge = maxAge,
         });
     }
 
@@ -78,7 +80,7 @@ public class ReportsController : Controller
     // Serves a generated HTML template (from HtmlTemplates/) populated with
     // window.REPORT_DATA from the existing .NET data services. The report's
     // JavaScript is inlined so the page is fully self-contained.
-    public async Task<IActionResult> HtmlReport(string report)
+    public async Task<IActionResult> HtmlReport(string report, string? fromDate, string? toDate, string? minAge, string? maxAge)
     {
         string key;
         object rows;
@@ -96,8 +98,21 @@ public class ReportsController : Controller
                 break;
             case "clinical":
                 key = "patient_clinical_summary";
-                rows = await _dataService.GetClinicalFlatRowsAsync();
-                parameters = new { fromDate = "2026-01-01", toDate = "2026-12-31", status = "All", rptUser = User?.Identity?.Name ?? "system" };
+                // Apply the filter query-string values (blank -> defaults) as data filters,
+                // and echo the applied values back as REPORT_DATA.parameters. The template's
+                // filter form reloads this URL with new values; we re-filter here.
+                var from = DateTime.TryParse(fromDate, out var f) ? f : new DateTime(2026, 1, 1);
+                var to = DateTime.TryParse(toDate, out var t) ? t : new DateTime(2026, 12, 31);
+                var minA = int.TryParse(minAge, out var mn) ? mn : 0;
+                var maxA = int.TryParse(maxAge, out var mx) ? mx : 120;
+                rows = await _dataService.GetClinicalFlatRowsAsync(from, to, minA, maxA, "All");
+                parameters = new
+                {
+                    fromDate = from.ToString("yyyy-MM-dd"),
+                    toDate = to.ToString("yyyy-MM-dd"),
+                    minAge = minA,
+                    maxAge = maxA,
+                };
                 break;
             default:
                 return RedirectToAction(nameof(HtmlReports));
@@ -160,7 +175,7 @@ public class ReportsController : Controller
     // that project for why RDL rendering can't run in-process on .NET 8), and
     // serves it inline (no Content-Disposition) for the <iframe> on the Reports
     // hub page.
-    public async Task<IActionResult> RdlView(string report, string? fromDate, string? toDate)
+    public async Task<IActionResult> RdlView(string report, string? fromDate, string? toDate, string? minAge, string? maxAge)
     {
         byte[] pdf;
         switch (report)
@@ -177,12 +192,22 @@ public class ReportsController : Controller
                 pdf = await _rdlRenderClient.RenderAsync("transplant", await _dataService.GetTransplantEventReportAsync(), transplantParameters);
                 break;
             case "clinical":
-                var rows = await _dataService.GetClinicalFlatRowsAsync();
+                // Resolve the filters (blank -> sensible defaults), filter the data in
+                // .NET (the RDL is rendered with fed data, so its SQL WHERE never runs),
+                // and echo the same filters into the report via its parameters.
+                var from = DateTime.TryParse(fromDate, out var f) ? f : new DateTime(2026, 1, 1);
+                var to = DateTime.TryParse(toDate, out var t) ? t : new DateTime(2026, 12, 31);
+                var minA = int.TryParse(minAge, out var mn) ? mn : 0;
+                var maxA = int.TryParse(maxAge, out var mx) ? mx : 120;
+
+                var rows = await _dataService.GetClinicalFlatRowsAsync(from, to, minA, maxA, "All");
                 var parameters = new Dictionary<string, string>
                 {
-                    ["FromDate"] = "2026-01-01",
-                    ["ToDate"] = "2026-12-31",
+                    ["FromDate"] = from.ToString("yyyy-MM-dd"),
+                    ["ToDate"] = to.ToString("yyyy-MM-dd"),
                     ["Status"] = "All",
+                    ["MinAge"] = minA.ToString(),
+                    ["MaxAge"] = maxA.ToString(),
                     ["rptUser"] = User?.Identity?.Name ?? "system",
                 };
                 pdf = await _rdlRenderClient.RenderAsync("clinical", rows, parameters);

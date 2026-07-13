@@ -1,108 +1,89 @@
+/*
+ * patient_clinical_summary.js
+ *
+ * Renders the Patient Clinical Summary Report ENTIRELY from window.REPORT_DATA.
+ *
+ * IMPORTANT CONTRACT:
+ *   - Rows arrive ALREADY FILTERED by the .NET host (visit-date window, age range,
+ *     status applied server-side in PatientDataService.GetClinicalFlatRowsAsync).
+ *     This script does NOT re-implement any WHERE / parameter filtering. Rows are
+ *     rendered as-is.
+ *   - The filter form is interactive: it round-trips the 4 filter values through the
+ *     page query string (preserving the routing `report=` param) so the host re-queries
+ *     and re-injects REPORT_DATA. No client-side row filtering ever happens here.
+ */
 (function () {
   "use strict";
-
-  // ---------------------------------------------------------------------------
-  // Patient Clinical Summary Report
-  //
-  // Source of truth: ReportThoughts/patient_clinical_summary.thought.md
-  // The RDL is authoritative wherever the RDL and the .NET service diverge.
-  //
-  // window.REPORT_DATA.rows is the FLAT joined result set: one row per lab
-  // result, with event/patient/facility metadata repeated; a row with null lab
-  // columns represents an event that has no labs (LEFT JOIN). All grouping and
-  // aggregation is performed here in JS.
-  // ---------------------------------------------------------------------------
 
   function getData() {
     return window.REPORT_DATA || { parameters: {}, rows: [], narrative: "", meta: {} };
   }
 
-  // ---- value helpers --------------------------------------------------------
-
-  function isNil(v) {
-    return v === null || v === undefined || v === "";
-  }
-
-  // Accepts real booleans, "Yes"/"No", "true"/"false", 1/0.
-  function isTrue(v) {
-    if (v === true) return true;
-    if (typeof v === "number") return v === 1;
-    if (typeof v === "string") {
-      var s = v.trim().toLowerCase();
-      return s === "true" || s === "yes" || s === "y" || s === "1";
-    }
-    return false;
-  }
-
-  function toNumber(v) {
-    if (isNil(v)) return null;
-    var n = typeof v === "number" ? v : parseFloat(v);
-    return isNaN(n) ? null : n;
-  }
-
-  function parseDate(v) {
-    if (isNil(v)) return null;
-    var d = v instanceof Date ? v : new Date(v);
-    return isNaN(d.getTime()) ? null : d;
-  }
+  /* ---------------------------------------------------------------- helpers */
 
   function pad2(n) { return (n < 10 ? "0" : "") + n; }
 
-  // Match RDL Format(date, "MM/dd/yyyy").
-  function formatDate(v) {
-    var d = parseDate(v);
-    if (!d) return "";
+  // Format an ISO date string to MM/dd/yyyy (matches RDL Format(..., "MM/dd/yyyy")).
+  function formatDateMDY(iso) {
+    if (iso == null || iso === "") return "-";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
     return pad2(d.getMonth() + 1) + "/" + pad2(d.getDate()) + "/" + d.getFullYear();
   }
 
-  // Match RDL Format(ExecutionTime, "MM/dd/yyyy HH:mm").
-  function formatDateTime(v) {
-    var d = parseDate(v);
-    if (!d) return "";
-    return formatDate(d) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  // Format an ISO datetime to MM/dd/yyyy HH:mm (footer).
+  function formatDateTime(iso) {
+    if (iso == null || iso === "") return "";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    return pad2(d.getMonth() + 1) + "/" + pad2(d.getDate()) + "/" + d.getFullYear() +
+      " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
   }
 
-  // ---- calculated fields (RDL <Field> expressions) --------------------------
+  function num(v) { return (v == null) ? null : Number(v); }
 
-  // Age = Floor(DateDiff(Day, DOB, Today()) / 365.25)   (RDL, authoritative)
-  function computeAge(dateOfBirth) {
-    var dob = parseDate(dateOfBirth);
-    if (!dob) return null;
+  /* -------------------------------------------- RDL calculated per-row fields */
+
+  // Age = Floor(DateDiff(Day, DateOfBirth, Today()) / 365.25)  (RDL display age).
+  function calcAge(dobIso) {
+    if (!dobIso) return 0;
+    var dob = new Date(dobIso);
+    if (isNaN(dob.getTime())) return 0;
     var days = Math.floor((Date.now() - dob.getTime()) / 86400000);
     return Math.floor(days / 365.25);
   }
 
-  // BMI = IIF(HeightCm > 0, Round(WeightKg / (HeightCm/100)^2, 1), 0)
-  function computeBmi(heightCm, weightKg) {
-    var h = toNumber(heightCm);
-    var w = toNumber(weightKg);
-    if (h === null || w === null || h <= 0) return 0;
+  // BMI = height>0 ? Round(weight / (h/100)^2, 1) : 0.
+  function calcBmi(heightCm, weightKg) {
+    var h = num(heightCm), w = num(weightKg);
+    if (!h || h <= 0 || w == null) return 0;
     var m = h / 100;
     return Math.round((w / (m * m)) * 10) / 10;
   }
 
-  // DaysSincePreviousVisit = DateDiff(Day, DateOfPreviousVisit, DateOfVisit)
-  function computeDaysSincePreviousVisit(dateOfPreviousVisit, dateOfVisit) {
-    var prev = parseDate(dateOfPreviousVisit);
-    var cur = parseDate(dateOfVisit);
-    if (!prev || !cur) return null;
-    return Math.round((cur.getTime() - prev.getTime()) / 86400000);
+  // DaysSincePreviousVisit = DateDiff(Day, DateOfPreviousVisit, DateOfVisit).
+  // Computed per the RDL field, but the RDL never places it in a cell, so it is
+  // intentionally not rendered anywhere in this layout.
+  function calcDaysSincePreviousVisit(prevIso, visitIso) {
+    if (!prevIso || !visitIso) return null;
+    var a = new Date(prevIso), b = new Date(visitIso);
+    if (isNaN(a.getTime()) || isNaN(b.getTime())) return null;
+    return Math.round((b.getTime() - a.getTime()) / 86400000);
   }
 
-  // LabFlag = "" if no value; "OUT" if value < RefLow or > RefHigh; else "OK".
-  function computeLabFlag(labValue, refLow, refHigh) {
-    var v = toNumber(labValue);
-    if (v === null) return "";
-    var lo = toNumber(refLow);
-    var hi = toNumber(refHigh);
-    if ((lo !== null && v < lo) || (hi !== null && v > hi)) return "OUT";
+  // LabFlag = "" (no lab) | "OUT" (out of ref range) | "OK".
+  function calcLabFlag(labValue, refLow, refHigh) {
+    var v = num(labValue);
+    if (v == null) return "";
+    var lo = num(refLow), hi = num(refHigh);
+    if ((lo != null && v < lo) || (hi != null && v > hi)) return "OUT";
     return "OK";
   }
 
-  // ---- custom VB <Code> functions (exact thresholds from the thought file) --
+  /* ------------------------------------- RDL custom VB <Code> reimplementation */
 
   function bmiCategory(bmi) {
-    if (bmi === 0) return "N/A";
+    if (!bmi || bmi === 0) return "N/A";
     if (bmi < 18.5) return "Underweight";
     if (bmi < 25) return "Normal";
     if (bmi < 30) return "Overweight";
@@ -114,328 +95,313 @@
     if (age >= 65) score += 2;
     else if (age >= 45) score += 1;
     if (inpatient) score += 2;
-    score += outOfRangeLabs;
+    score += (outOfRangeLabs || 0);
     return score;
   }
 
-  var HIGH_RISK_THRESHOLD = 4;
-
-  // ---- RDL WHERE clause (the injecting .NET service does NOT filter) ---------
-  // te.DateOfVisit BETWEEN @FromDate AND @ToDate AND (@Status='All' OR p.Status=@Status)
-  function applyRdlFilter(rows, params) {
-    var from = parseDate(params.fromDate);
-    var to = parseDate(params.toDate);
-    var status = params.status;
-    return rows.filter(function (r) {
-      var visit = parseDate(r.dateOfVisit);
-      if (from && visit && visit < from) return false;
-      if (to && visit && visit > to) return false;
-      if (status && status !== "All" && r.status !== status) return false;
-      return true;
+  // Enrich each fed row with the RDL calculated fields.
+  function enrich(rows) {
+    return rows.map(function (r) {
+      var e = Object.assign({}, r);
+      e._age = calcAge(r.dateOfBirth);
+      e._bmi = calcBmi(r.heightCm, r.weightKg);
+      e._daysSincePreviousVisit = calcDaysSincePreviousVisit(r.dateOfPreviousVisit, r.dateOfVisit);
+      e._labFlag = calcLabFlag(r.labValue, r.refLow, r.refHigh);
+      return e;
     });
   }
 
-  // ---- grouping: Facility -> Patient -> (Event, Lab) detail rows -------------
-  // Dataset ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName. We sort
-  // facilities by FacilityName, patients by PatientName (grpPatient sort), and
-  // detail rows by DateOfVisit then LabTestName (grpDetail sort).
-  function groupByFacility(rows) {
-    var facMap = {};
-    var facOrder = [];
+  /* ----------------------------------------------------------- filter form */
 
-    rows.forEach(function (r) {
-      var age = computeAge(r.dateOfBirth);
-      var bmi = computeBmi(r.heightCm, r.weightKg);
-      var flag = computeLabFlag(r.labValue, r.refLow, r.refHigh);
-      var enriched = {
-        row: r,
-        age: age,
-        bmi: bmi,
-        labFlag: flag,
-        inpatient: isTrue(r.isInpatient),
-        daysSincePreviousVisit: computeDaysSincePreviousVisit(r.dateOfPreviousVisit, r.dateOfVisit)
-      };
-
-      var fName = r.facilityName || "";
-      if (!facMap[fName]) {
-        facMap[fName] = {
-          facilityName: fName,
-          facilityCity: r.facilityCity || "",
-          facilityState: r.facilityState || "",
-          patientMap: {},
-          patientOrder: [],
-          allEnriched: []
-        };
-        facOrder.push(fName);
+  // Populate the form from applied parameters; on submit merge values into the
+  // query string and reload (host re-filters). NEVER filters rows here.
+  function wireFilterForm(params) {
+    var form = document.querySelector("[data-filter-form]");
+    if (!form) return;
+    ["fromDate", "toDate", "minAge", "maxAge"].forEach(function (k) {
+      var el = form.querySelector('[name="' + k + '"]');
+      if (el != null && params[k] != null && params[k] !== "") {
+        var v = params[k];
+        // date inputs need yyyy-MM-dd; slice ISO datetimes if present.
+        if (el.type === "date" && typeof v === "string" && v.length >= 10) v = v.slice(0, 10);
+        el.value = v;
       }
-      var fac = facMap[fName];
-      fac.allEnriched.push(enriched);
-
-      var pKey = String(r.patientId);
-      if (!fac.patientMap[pKey]) {
-        fac.patientMap[pKey] = {
-          patientId: r.patientId,
-          patientName: r.patientName || "",
-          mrn: r.mrn || "",
-          gender: r.gender || "",
-          age: age,
-          bmi: bmi,
-          primaryDiagnosis: r.primaryDiagnosis || "",
-          activeMedCount: isNil(r.activeMedCount) ? 0 : r.activeMedCount,
-          details: []
-        };
-        fac.patientOrder.push(pKey);
-      }
-      fac.patientMap[pKey].details.push(enriched);
     });
-
-    return facOrder.map(function (fName) {
-      var fac = facMap[fName];
-
-      var patients = fac.patientOrder.map(function (pKey) {
-        var p = fac.patientMap[pKey];
-
-        // detail sort: DateOfVisit, then LabTestName
-        p.details.sort(function (a, b) {
-          var da = parseDate(a.row.dateOfVisit), db = parseDate(b.row.dateOfVisit);
-          var ta = da ? da.getTime() : 0, tb = db ? db.getTime() : 0;
-          if (ta !== tb) return ta - tb;
-          var la = (a.row.labTestName || "").toLowerCase();
-          var lb = (b.row.labTestName || "").toLowerCase();
-          return la < lb ? -1 : la > lb ? 1 : 0;
-        });
-
-        // Patient-scoped risk: age, ANY inpatient event, total OUT labs.
-        var anyInpatient = p.details.some(function (d) { return d.inpatient; });
-        var outCount = p.details.reduce(function (n, d) {
-          return n + (d.labFlag === "OUT" ? 1 : 0);
-        }, 0);
-        var risk = riskScore(p.age || 0, anyInpatient, outCount);
-
-        p.riskScore = risk;
-        p.isHighRisk = risk >= HIGH_RISK_THRESHOLD;
-        p.bmiCategory = bmiCategory(p.bmi);
-        return p;
-      }).sort(function (a, b) {
-        return a.patientName.toLowerCase() < b.patientName.toLowerCase() ? -1
-             : a.patientName.toLowerCase() > b.patientName.toLowerCase() ? 1 : 0;
-      });
-
-      return { facility: fac, patients: patients };
-    }).sort(function (a, b) {
-      return a.facility.facilityName.toLowerCase() < b.facility.facilityName.toLowerCase() ? -1
-           : a.facility.facilityName.toLowerCase() > b.facility.facilityName.toLowerCase() ? 1 : 0;
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var qs = new URLSearchParams(location.search); // preserves report= and any other routing params
+      form.querySelectorAll("[name]").forEach(function (el) { qs.set(el.name, el.value); });
+      location.search = qs.toString(); // host re-queries and re-injects REPORT_DATA
     });
   }
 
-  // ---- Facility Summary aggregates (grpFacSummary scope) ---------------------
-  function summarizeFacility(fac) {
-    var rows = fac.allEnriched;
-    var patientIds = {}, eventIds = {}, inpatientEventIds = {};
-    var ageSum = 0, ageCount = 0, oorLabs = 0;
+  /* --------------------------------------------------------- filters echo */
 
-    rows.forEach(function (d) {
-      var r = d.row;
-      patientIds[String(r.patientId)] = true;
-      if (!isNil(r.eventId)) eventIds[String(r.eventId)] = true;
-      // SSRS Avg(Age) over the facility's rows (row-weighted, not per patient).
-      if (d.age !== null) { ageSum += d.age; ageCount += 1; }
-      if (d.inpatient && !isNil(r.eventId)) inpatientEventIds[String(r.eventId)] = true;
-      if (d.labFlag === "OUT") oorLabs += 1;
-    });
-
-    return {
-      facilityName: fac.facilityName,
-      patientCount: Object.keys(patientIds).length,
-      eventCount: Object.keys(eventIds).length,
-      avgAge: ageCount ? Math.round(ageSum / ageCount) : 0,
-      inpatientEvents: Object.keys(inpatientEventIds).length,
-      oorLabs: oorLabs
-    };
-  }
-
-  // ---- rendering ------------------------------------------------------------
-
-  function renderFilters(el, params) {
+  function renderFiltersEcho(params) {
+    var el = document.querySelector("[data-filters]");
     if (!el) return;
-    // RDL: "Filters  -  Visit dates: {from} to {to}     |     Patient status: {status}"
-    var from = formatDate(params.fromDate) || "(any)";
-    var to = formatDate(params.toDate) || "(any)";
+    var from = params.fromDate ? formatDateMDY(params.fromDate) : "-";
+    var to = params.toDate ? formatDateMDY(params.toDate) : "-";
+    var minA = (params.minAge != null && params.minAge !== "") ? params.minAge : "-";
+    var maxA = (params.maxAge != null && params.maxAge !== "") ? params.maxAge : "-";
     var status = params.status || "All";
     el.textContent = "Filters  -  Visit dates: " + from + " to " + to +
+      "     |     Age: " + minA + " to " + maxA +
       "     |     Patient status: " + status;
   }
 
-  function renderNarrative(el, text) {
+  /* --------------------------------------------------- narrative + footer */
+
+  function renderNarrative(text) {
+    var el = document.querySelector("[data-narrative]");
     if (!el) return;
-    if (text && String(text).trim()) {
+    if (text && String(text).trim() !== "") {
       el.textContent = text;
       el.hidden = false;
-    } else {
-      el.hidden = true;
     }
   }
 
-  function cell(text, opts) {
-    var td = document.createElement("td");
-    td.textContent = isNil(text) ? "" : String(text);
-    if (opts && opts.className) td.className = opts.className;
-    if (opts && opts.colspan) td.colSpan = opts.colspan;
-    return td;
+  function renderFooter(meta, params) {
+    var gen = document.querySelector("[data-generated]");
+    var by = document.querySelector("[data-executed-by]");
+    var when = formatDateTime(meta.generatedAt);
+    var user = meta.executedBy || params.rptUser || "system";
+    if (gen) gen.textContent = "Generated: " + (when || "-") + "     |     Run by: " + user;
+    if (by) by.textContent = meta.rowCount != null ? ("Rows: " + meta.rowCount) : "";
   }
 
-  function renderFacilitySummary(tbody, groups) {
+  /* ---------------------------------------------------- grouping utilities */
+
+  function distinct(arr) {
+    var seen = Object.create(null), out = [];
+    arr.forEach(function (v) {
+      var k = String(v);
+      if (!seen[k]) { seen[k] = true; out.push(v); }
+    });
+    return out;
+  }
+
+  function groupBy(rows, keyFn) {
+    var map = new Map();
+    rows.forEach(function (r) {
+      var k = keyFn(r);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(r);
+    });
+    return map;
+  }
+
+  /* -------------------------------------------------- Facility Summary tablix */
+
+  function td(text, cls) {
+    var el = document.createElement("td");
+    el.textContent = (text == null ? "" : String(text));
+    if (cls) el.className = cls;
+    return el;
+  }
+
+  function renderFacilitySummary(rows) {
+    var section = document.querySelector("[data-summary-section]");
+    var tbody = document.querySelector("[data-facility-summary]");
     if (!tbody) return;
-    tbody.textContent = "";
-    groups.forEach(function (g) {
-      var s = summarizeFacility(g.facility);
+    tbody.innerHTML = "";
+
+    // grpFacSummary on FacilityName, sorted by FacilityName.
+    var byFacility = groupBy(rows, function (r) { return r.facilityName; });
+    var facilities = Array.from(byFacility.keys()).sort(function (a, b) {
+      return String(a).localeCompare(String(b));
+    });
+
+    facilities.forEach(function (fac) {
+      var frows = byFacility.get(fac);
+      var patients = distinct(frows.map(function (r) { return r.patientId; })).length;
+      var events = distinct(frows.map(function (r) { return r.eventId; })).length;
+
+      // RDL Avg(Age) averages over the facility's detail rows.
+      var ageSum = frows.reduce(function (s, r) { return s + (r._age || 0); }, 0);
+      var avgAge = frows.length ? Math.round(ageSum / frows.length) : 0;
+
+      // CountDistinct(IIF(IsInpatient, EventId, Nothing)) -> distinct inpatient events.
+      var inpatientEvents = distinct(
+        frows.filter(function (r) { return r.isInpatient; })
+             .map(function (r) { return r.eventId; })
+      ).length;
+
+      var oor = frows.reduce(function (s, r) { return s + (r._labFlag === "OUT" ? 1 : 0); }, 0);
+
       var tr = document.createElement("tr");
-      tr.appendChild(cell(s.facilityName));
-      tr.appendChild(cell(s.patientCount, { className: "num" }));
-      tr.appendChild(cell(s.eventCount, { className: "num" }));
-      tr.appendChild(cell(s.avgAge, { className: "num" }));
-      tr.appendChild(cell(s.inpatientEvents, { className: "num" }));
-      // Conditional: out-of-range > 0 -> red + bold.
-      tr.appendChild(cell(s.oorLabs, { className: s.oorLabs > 0 ? "num oor-hit" : "num" }));
+      tr.appendChild(td(fac));
+      tr.appendChild(td(patients, "num"));
+      tr.appendChild(td(events, "num"));
+      tr.appendChild(td(avgAge, "num"));
+      tr.appendChild(td(inpatientEvents, "num"));
+      var oorTd = td(oor, "num");
+      if (oor > 0) oorTd.classList.add("oor-cell"); // red + bold when > 0
+      tr.appendChild(oorTd);
       tbody.appendChild(tr);
     });
+
+    if (section) section.hidden = facilities.length === 0;
   }
 
-  function facilityBandRow(fac) {
-    var tr = document.createElement("tr");
-    tr.className = "facility-band";
-    var label = "Facility:  " + fac.facilityName + "   -   " +
-      fac.facilityCity + ", " + fac.facilityState;
-    tr.appendChild(cell(label, { colspan: 9 }));
-    return tr;
-  }
+  /* -------------------------------------------- Clinical Detail nested tablix */
 
-  function patientBannerRow(p) {
-    var tr = document.createElement("tr");
-    tr.className = "patient-banner " + (p.isHighRisk ? "risk-high" : "risk-low");
-    var td = document.createElement("td");
-    td.colSpan = 9;
+  var DETAIL_HEADERS = ["Event", "Visit Date", "Provider", "Donor", "Setting",
+    "Test", "Result", "Reference", "Flag"];
 
-    var bmiText = p.bmi ? (p.bmi + " (" + p.bmiCategory + ")") : ("0 (" + p.bmiCategory + ")");
-    var parts = [
-      p.patientName,
-      "MRN: " + p.mrn,
-      "Age: " + (p.age === null ? "-" : p.age),
-      "Sex: " + (p.gender || "-"),
-      "BMI: " + bmiText,
-      "Dx: " + (p.primaryDiagnosis || "-"),
-      "Active meds: " + p.activeMedCount
-    ];
-    td.appendChild(document.createTextNode(parts.join("   |   ") + "   "));
+  function renderDetail(rows) {
+    var section = document.querySelector("[data-detail-section]");
+    var host = document.querySelector("[data-detail]");
+    if (!host) return;
+    host.innerHTML = "";
 
-    var pill = document.createElement("span");
-    pill.className = "risk-pill";
-    pill.textContent = "Risk: " + p.riskScore + (p.isHighRisk ? " (HIGH)" : "");
-    td.appendChild(pill);
-
-    tr.appendChild(td);
-    return tr;
-  }
-
-  function detailRow(d) {
-    var r = d.row;
-    var tr = document.createElement("tr");
-
-    tr.appendChild(cell(r.eventId));                               // Event
-
-    // Visit Date + Days-since-previous-visit sub-note (see .md deviation note).
-    var visitTd = cell(formatDate(r.dateOfVisit));
-    if (d.daysSincePreviousVisit !== null) {
-      var note = document.createElement("span");
-      note.className = "visit-subnote";
-      note.textContent = d.daysSincePreviousVisit + " days since prior visit";
-      visitTd.appendChild(note);
-    }
-    tr.appendChild(visitTd);
-
-    var provider = (r.providerName || "") + (r.specialty ? " (" + r.specialty + ")" : "");
-    tr.appendChild(cell(provider));                                // Provider
-    tr.appendChild(cell(r.donorType));                             // Donor
-
-    // Setting: Inpatient/Outpatient, yellow highlight when inpatient.
-    tr.appendChild(cell(d.inpatient ? "Inpatient" : "Outpatient",
-      { className: d.inpatient ? "setting-inpatient" : "" }));     // Setting
-
-    tr.appendChild(cell(isNil(r.labTestName) ? "-" : r.labTestName)); // Test
-
-    // Result: value + unit, or "-".
-    var result = isNil(r.labValue) ? "-" : (r.labValue + (r.labUnit ? " " + r.labUnit : ""));
-    tr.appendChild(cell(result));                                  // Result
-
-    // Reference: low - high, or "-".
-    var reference = isNil(r.refLow) ? "-" : (r.refLow + " - " + r.refHigh);
-    tr.appendChild(cell(reference));                               // Reference
-
-    // Flag: OUT (red bold) / OK (green) / "".
-    var flagClass = d.labFlag === "OUT" ? "flag-out" : (d.labFlag === "OK" ? "flag-ok" : "");
-    tr.appendChild(cell(d.labFlag, { className: flagClass }));     // Flag
-
-    return tr;
-  }
-
-  function renderDetail(tbody, groups) {
-    if (!tbody) return;
-    tbody.textContent = "";
-    groups.forEach(function (g) {
-      tbody.appendChild(facilityBandRow(g.facility));
-      g.patients.forEach(function (p) {
-        tbody.appendChild(patientBannerRow(p));
-        p.details.forEach(function (d) {
-          tbody.appendChild(detailRow(d));
-        });
-      });
+    // grpFacility -> grpPatient -> grpDetail (event + lab).
+    var byFacility = groupBy(rows, function (r) { return r.facilityName; });
+    var facilities = Array.from(byFacility.keys()).sort(function (a, b) {
+      return String(a).localeCompare(String(b));
     });
+
+    facilities.forEach(function (fac) {
+      var frows = byFacility.get(fac);
+      var group = document.createElement("div");
+      group.className = "facility-group";
+
+      var f0 = frows[0];
+      var band = document.createElement("div");
+      band.className = "facility-band";
+      band.textContent = "Facility:  " + fac + "   -   " +
+        (f0.facilityCity || "") + ", " + (f0.facilityState || "");
+      group.appendChild(band);
+
+      // grpPatient on PatientId, sorted by PatientName.
+      var byPatient = groupBy(frows, function (r) { return r.patientId; });
+      var patientIds = Array.from(byPatient.keys()).sort(function (a, b) {
+        var na = byPatient.get(a)[0].patientName || "";
+        var nb = byPatient.get(b)[0].patientName || "";
+        return na.localeCompare(nb);
+      });
+
+      patientIds.forEach(function (pid) {
+        var prows = byPatient.get(pid);
+        group.appendChild(renderPatientBanner(prows));
+        group.appendChild(renderDetailTable(prows));
+      });
+
+      host.appendChild(group);
+    });
+
+    if (section) section.hidden = facilities.length === 0;
   }
 
-  function renderFooter(data, params) {
-    var gen = document.querySelector("[data-generated]");
-    var page = document.querySelector("[data-pageinfo]");
-    var meta = data.meta || {};
-    if (gen) {
-      var when = formatDateTime(meta.generatedAt);
-      var runBy = params.rptUser || meta.executedBy || "system";
-      gen.textContent = "Generated: " + (when || "-") + "     |     Run by: " + runBy;
-    }
-    // RDL "Page X of Y" is a paginated-render concept; not meaningful in a single
-    // scrollable HTML page. Show row count instead.
-    if (page) page.textContent = "Rows: " + (meta.rowCount != null ? meta.rowCount : "");
+  function renderPatientBanner(prows) {
+    var p = prows[0];
+    // Scoped aggregates over the patient group (First/Sum ,"grpPatient").
+    var age = p._age;
+    var anyInpatient = prows.some(function (r) { return r.isInpatient; });
+    var oorLabs = prows.reduce(function (s, r) { return s + (r._labFlag === "OUT" ? 1 : 0); }, 0);
+    var risk = riskScore(age, anyInpatient, oorLabs);
+    var highRisk = risk >= 4;
+
+    var div = document.createElement("div");
+    div.className = "patient-banner " + (highRisk ? "risk-high" : "risk-low");
+
+    var bmi = p._bmi;
+    var items = [
+      ["Patient", p.patientName],
+      ["MRN", p.mrn],
+      ["Age", age],
+      ["Sex", p.gender],
+      ["BMI", bmi + " (" + bmiCategory(bmi) + ")"],
+      ["Risk", risk + (highRisk ? " (HIGH)" : "")],
+      ["Primary Dx", p.primaryDiagnosis || "-"],
+      ["Active meds", p.activeMedCount]
+    ];
+    items.forEach(function (pair) {
+      var span = document.createElement("span");
+      span.className = "pb-item";
+      var lbl = document.createElement("span");
+      lbl.className = "pb-label";
+      lbl.textContent = pair[0] + ": ";
+      span.appendChild(lbl);
+      span.appendChild(document.createTextNode(pair[1] == null ? "" : String(pair[1])));
+      div.appendChild(span);
+    });
+    return div;
   }
 
-  function toggleSections(hasData) {
-    var summary = document.querySelector("[data-section-summary]");
-    var detail = document.querySelector("[data-section-detail]");
-    var empty = document.querySelector("[data-empty]");
-    if (summary) summary.hidden = !hasData;
-    if (detail) detail.hidden = !hasData;
-    if (empty) empty.hidden = hasData;
+  function renderDetailTable(prows) {
+    // grpDetail sort: DateOfVisit then LabTestName.
+    var sorted = prows.slice().sort(function (a, b) {
+      var da = new Date(a.dateOfVisit).getTime() || 0;
+      var db = new Date(b.dateOfVisit).getTime() || 0;
+      if (da !== db) return da - db;
+      return String(a.labTestName || "").localeCompare(String(b.labTestName || ""));
+    });
+
+    var table = document.createElement("table");
+    table.className = "detail-table";
+
+    var thead = document.createElement("thead");
+    var htr = document.createElement("tr");
+    DETAIL_HEADERS.forEach(function (h) {
+      var th = document.createElement("th");
+      th.scope = "col";
+      th.textContent = h;
+      htr.appendChild(th);
+    });
+    thead.appendChild(htr);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    sorted.forEach(function (r, i) {
+      var tr = document.createElement("tr");
+      if (i % 2 === 0) tr.classList.add("zebra"); // RowNumber Mod 2 = 1 -> shade (1-based)
+
+      tr.appendChild(td(r.eventId));
+      tr.appendChild(td(formatDateMDY(r.dateOfVisit)));
+      tr.appendChild(td((r.providerName || "-") + " (" + (r.specialty || "") + ")"));
+      tr.appendChild(td(r.donorType));
+
+      var settingTd = td(r.isInpatient ? "Inpatient" : "Outpatient");
+      if (r.isInpatient) settingTd.classList.add("cell-inpatient"); // yellow highlight
+      tr.appendChild(settingTd);
+
+      tr.appendChild(td(r.labTestName == null ? "-" : r.labTestName));
+      tr.appendChild(td(r.labValue == null ? "-" : (String(r.labValue) + " " + (r.labUnit || ""))));
+      tr.appendChild(td(r.refLow == null ? "-" : (String(r.refLow) + " - " + String(r.refHigh))));
+
+      var flagTd = td(r._labFlag);
+      if (r._labFlag === "OUT") flagTd.classList.add("flag-out");      // red + bold
+      else if (r._labFlag === "OK") flagTd.classList.add("flag-ok");   // green
+      tr.appendChild(flagTd);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    return table;
   }
+
+  /* --------------------------------------------------------------- bootstrap */
 
   document.addEventListener("DOMContentLoaded", function () {
     var data = getData();
     var params = data.parameters || {};
-    var allRows = Array.isArray(data.rows) ? data.rows : [];
+    var rows = Array.isArray(data.rows) ? data.rows : []; // ALREADY filtered by host
 
-    renderFilters(document.querySelector("[data-filters]"), params);
-    renderNarrative(document.querySelector("[data-narrative]"), data.narrative);
+    wireFilterForm(params);
+    renderFiltersEcho(params);
+    renderNarrative(data.narrative);
+    renderFooter(data.meta || {}, params);
 
-    // Reproduce the RDL WHERE clause (the injecting service loads unfiltered).
-    var rows = applyRdlFilter(allRows, params);
-
+    var empty = document.querySelector("[data-empty]");
     if (!rows.length) {
-      toggleSections(false);
-      renderFooter(data, params);
+      if (empty) empty.hidden = false;
       return;
     }
+    if (empty) empty.hidden = true;
 
-    var groups = groupByFacility(rows);
-    toggleSections(true);
-    renderFacilitySummary(document.querySelector("[data-facility-summary]"), groups);
-    renderDetail(document.querySelector("[data-detail]"), groups);
-    renderFooter(data, params);
+    var enriched = enrich(rows);
+    renderFacilitySummary(enriched);
+    renderDetail(enriched);
   });
 })();
