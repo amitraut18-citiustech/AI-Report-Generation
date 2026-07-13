@@ -46,7 +46,7 @@ window.REPORT_DATA = {
     }
     // ... one object per patient
   ],
-  narrative: "",            // LLM-generated summary; may be empty
+  narrative: "",            // LLM-generated summary; may be empty (see Narrative Rendering below)
   meta: {
     generatedAt: "ISO-8601",
     executedBy: "string",
@@ -66,6 +66,16 @@ window.REPORT_DATA = {
 | ContactNumber | contactNumber |
 | Email | email |
 | PhoneNumber | phoneNumber |
+
+## Narrative Rendering
+
+When `narrative` is non-empty, `renderNarrative()` builds a styled card:
+
+- **Header:** Dark navy bar with an SVG info icon and the label "AI Summary" (`.report__narrative-header`)
+- **Body:** The narrative text is split into paragraphs (every two sentences grouped) and rendered as `<p>` elements (`.report__narrative-body`)
+- **Chart:** If `window.REPORT_DATA.chart` is present (type, title, labels, values), a Chart.js canvas is inserted after the narrative section
+
+The narrative section is hidden when `narrative` is empty.
 
 ## Deviations from Source
 

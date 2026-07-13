@@ -28,6 +28,16 @@ public class ReportQueryService
         ["LabResults"] = new() { ["TransplantEvents"] = "TransplantEvent" },
     };
 
+    // 2-hop navigation: primary table → target table → [nav1, nav2]
+    // e.g. TransplantEvents → Facilities goes through Patient.Facility
+    private static readonly Dictionary<string, Dictionary<string, string[]>> ChainedNavMap = new()
+    {
+        ["TransplantEvents"] = new() { ["Facilities"] = new[] { "Patient", "Facility" } },
+        ["LabResults"] = new() { ["Patients"] = new[] { "TransplantEvent", "Patient" } },
+        ["Diagnoses"] = new() { ["Facilities"] = new[] { "Patient", "Facility" } },
+        ["Medications"] = new() { ["Facilities"] = new[] { "Patient", "Facility" } },
+    };
+
     // Operators that are not meaningful for string comparisons. If the brain
     // emits greaterThan/lessThan for a string field, the filter is skipped
     // rather than silently degraded to equals.
@@ -121,24 +131,44 @@ public class ReportQueryService
                 else
                 {
                     var navProp = ResolveNavProperty(primaryTable, filter.Table);
-                    if (navProp == null)
+                    if (navProp != null)
                     {
-                        filter.Status = "skipped";
-                        _logger.LogWarning("No navigation from {Primary} to {Target}", primaryTable, filter.Table);
-                        continue;
-                    }
-
-                    var predicate = BuildNavPredicate<T>(entityType, navProp, filter.Field, filter.Operator, filter.Value);
-                    if (predicate != null)
-                    {
-                        query = query.Where(predicate);
-                        filter.Status = "applied";
+                        var predicate = BuildNavPredicate<T>(entityType, navProp, filter.Field, filter.Operator, filter.Value);
+                        if (predicate != null)
+                        {
+                            query = query.Where(predicate);
+                            filter.Status = "applied";
+                        }
+                        else
+                        {
+                            filter.Status = "skipped";
+                            _logger.LogWarning("Could not build nav predicate for {Nav}.{Field} {Op}",
+                                navProp, filter.Field, filter.Operator);
+                        }
                     }
                     else
                     {
-                        filter.Status = "skipped";
-                        _logger.LogWarning("Could not build nav predicate for {Nav}.{Field} {Op}",
-                            navProp, filter.Field, filter.Operator);
+                        var chain = ResolveChainedNav(primaryTable, filter.Table);
+                        if (chain != null)
+                        {
+                            var predicate = BuildChainedNavPredicate<T>(entityType, chain, filter.Field, filter.Operator, filter.Value);
+                            if (predicate != null)
+                            {
+                                query = query.Where(predicate);
+                                filter.Status = "applied";
+                            }
+                            else
+                            {
+                                filter.Status = "skipped";
+                                _logger.LogWarning("Could not build chained nav predicate for {Chain}.{Field} {Op}",
+                                    string.Join(".", chain), filter.Field, filter.Operator);
+                            }
+                        }
+                        else
+                        {
+                            filter.Status = "skipped";
+                            _logger.LogWarning("No navigation from {Primary} to {Target}", primaryTable, filter.Table);
+                        }
                     }
                 }
             }
@@ -161,6 +191,14 @@ public class ReportQueryService
         return null;
     }
 
+    private static string[]? ResolveChainedNav(string primaryTable, string targetTable)
+    {
+        if (ChainedNavMap.TryGetValue(primaryTable, out var chains) &&
+            chains.TryGetValue(targetTable, out var chain))
+            return chain;
+        return null;
+    }
+
     private static Expression<Func<T, bool>>? BuildPredicate<T>(
         Type entityType, string fieldName, string op, string value)
     {
@@ -171,6 +209,30 @@ public class ReportQueryService
         var param = Expression.Parameter(typeof(T), "x");
         var member = Expression.Property(param, property);
         return BuildComparison<T>(param, member, property.PropertyType, op, value);
+    }
+
+    private static Expression<Func<T, bool>>? BuildChainedNavPredicate<T>(
+        Type entityType, string[] chain, string fieldName, string op, string value)
+    {
+        var param = Expression.Parameter(typeof(T), "x");
+        Expression current = param;
+        var currentType = entityType;
+
+        foreach (var navName in chain)
+        {
+            var prop = currentType.GetProperty(navName,
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (prop == null) return null;
+            current = Expression.Property(current, prop);
+            currentType = prop.PropertyType;
+        }
+
+        var targetProp = currentType.GetProperty(fieldName,
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (targetProp == null) return null;
+
+        var member = Expression.Property(current, targetProp);
+        return BuildComparison<T>(param, member, targetProp.PropertyType, op, value);
     }
 
     private static Expression<Func<T, bool>>? BuildNavPredicate<T>(

@@ -28,13 +28,31 @@ Respond with ONLY valid JSON, no other text:
   }}
 }}
 
+SUMMARY RULES:
+- ONLY state facts that are directly verifiable from the data rows above
+- Count values by reading the actual field values in the data — do NOT guess or estimate
+- For gender/sex: read the "gender" field in each row. Do NOT infer gender from names
+- For counts and breakdowns: iterate the actual rows and count. e.g. if 3 rows have
+  gender="Female" and 2 have gender="Male", say "3 female and 2 male patients"
+- Do NOT make claims about "all" rows having a property unless every row actually does
+- If you are unsure about a fact, omit it rather than guessing
+
 CHART RULES:
+- You MUST include a chart when there are 2 or more rows. Only set "chart" to null for 1 row.
+- Pick the BEST categorical field to chart. Common choices:
+  - Patient data: gender distribution (pie), status breakdown (pie)
+  - Transplant data: donor type breakdown (pie), inpatient vs outpatient (pie),
+    events per patient (bar)
+  - Clinical data: events by facility (bar), risk level distribution (pie)
 - Use "pie" for proportions/distributions (e.g., gender split, status breakdown)
-- Use "bar" for comparisons across categories (e.g., counts by facility, by type)
+- Use "bar" for comparisons across categories (e.g., counts per patient, per facility)
 - Use "line" for trends over time (e.g., visits by month)
-- If the data has only 1 row or a chart doesn't make sense, set "chart" to null
+- Count the actual values in the data to build labels and values arrays
 - Labels and values must come directly from the data — do not invent numbers
 - Keep to 10 or fewer categories; group small categories as "Other" if needed
+
+CHART EXAMPLE for patient data with 4 Female and 3 Male:
+{{"type": "pie", "title": "Gender Distribution", "labels": ["Female", "Male"], "values": [4, 3]}}
 
 IMPORTANT: The data has been de-identified. Use the identifiers exactly as they appear
 (e.g., Patient_001, P_001). Do not attempt to guess real names or identifiers."""

@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from ollama import Client as OllamaClient
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .claude_fallback import summarize_with_claude
 from .config import settings
@@ -52,6 +52,13 @@ class QueryFilter(BaseModel):
     field: str
     operator: str = "equals"
     value: str
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def coerce_value_to_str(cls, v):
+        if not isinstance(v, str):
+            return str(v)
+        return v
 
 
 class JoinSpec(BaseModel):

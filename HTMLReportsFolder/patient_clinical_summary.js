@@ -341,11 +341,25 @@
   /* ------------------------------------------------------------------ */
 
   function renderNarrative(narrative) {
-    if (!narrative) return;
     var el = document.querySelector("[data-narrative]");
     if (!el) return;
-    el.textContent = narrative;
-    el.hidden = false;
+    if (narrative) {
+      var sentences = narrative.split(/(?<=\.)\s+/);
+      var paragraphs = [];
+      for (var i = 0; i < sentences.length; i += 2) {
+        var chunk = sentences.slice(i, i + 2).join(" ");
+        paragraphs.push("<p>" + escapeHtml(chunk) + "</p>");
+      }
+      el.innerHTML =
+        '<div class="report__narrative-header">' +
+          '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2zM6.5 6.5h2v5h1v1h-3v-1h1v-4h-1v-1z"/></svg>' +
+          'AI Summary' +
+        '</div>' +
+        '<div class="report__narrative-body">' + paragraphs.join("") + '</div>';
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
   }
 
   /* ------------------------------------------------------------------ */
