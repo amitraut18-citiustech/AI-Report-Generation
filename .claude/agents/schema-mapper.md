@@ -63,13 +63,45 @@ When in doubt, prefer `true`. Note any judgment calls so a reviewer can confirm.
 Follow [../skills/report-forge/references/schema-mapping-example.md](../skills/report-forge/references/schema-mapping-example.md)
 exactly.
 
-- `schema-mapping.json`: `{ database, generated, tables: [ { name, description,
-  reportable, columns: [ { name, type, description, phi } ], relationships: [ { column,
-  references, type } ] } ] }`. Use a placeholder ISO timestamp string
-  `"<fill-at-generation>"` for `generated` unless the user supplies one (you cannot read
-  the clock).
+- `schema-mapping.json`: `{ database, generated, allowedOperators, tables: [ { name,
+  description, reportable, columns: [ { name, type, description, phi, navigation? } ],
+  relationships: [ { column, references, type } ] } ] }`.
+  - `allowedOperators`: always `["equals", "notEquals", "contains", "greaterThan",
+    "greaterThanOrEqual", "lessThan", "lessThanOrEqual"]`.
+  - Use a placeholder ISO timestamp string `"<fill-at-generation>"` for `generated`
+    unless the user supplies one (you cannot read the wall clock).
 - `phi-markers.json`: `{ database, phiColumns: [ { table, column, strategy } ] }` where
   `strategy` ∈ `pseudonymize | age_range | sequential_id | redact | region_only`.
+  Include `_viewmodel` entries for projected/concatenated field names that appear in
+  report DTOs (e.g. `PatientName`, `ProviderName`, `Mrn`) so the anonymizer catches
+  them regardless of the data shape.
+
+## Navigation metadata on FK columns
+
+Every FK column (identified by `HasForeignKey` in EF or `REFERENCES` in DDL) MUST include
+a `navigation` block. This tells the Phase 2 brain how to resolve cross-table filters
+(e.g. "patients at Austin General" → filter on `Facilities.Name`, not `Patients.FacilityId`).
+
+Structure:
+```json
+{
+  "name": "FacilityId", "type": "int", "description": "Foreign key to Facilities", "phi": false,
+  "navigation": {
+    "table": "Facilities",
+    "foreignKey": "Id",
+    "navProperty": "Facility",
+    "displayFields": ["Name", "City", "State"]
+  }
+}
+```
+
+Fields:
+- `table` — the related table name (must match a table entry in this schema)
+- `foreignKey` — the PK column on the related table (usually `"Id"`)
+- `navProperty` — the EF Core navigation property name on the entity (e.g. `"Facility"`,
+  `"Patient"`, `"Provider"`). Found in the entity class or in `HasOne(x => x.PropertyName)`.
+- `displayFields` — the human-readable columns on the related table that a user would
+  filter on (not the FK int). Choose string columns that are meaningful to business users.
 
 ## Rules
 - Never invent columns that no source supports. If the schema is partial, emit what you

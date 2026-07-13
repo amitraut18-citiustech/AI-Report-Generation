@@ -1,14 +1,65 @@
 @model PatientReports.Models.ReportsHubViewModel
 @{
-    ViewData["Title"] = "HTML Reports";
+    ViewData["Title"] = "AI Reports";
 }
 
-<h2 class="mb-1">HTML-based Reports</h2>
-<p class="text-muted">Rendered from the plugin-generated static HTML templates, populated by the existing .NET data logic &mdash; the SSRS replacement.</p>
+<h2 class="mb-1">AI-Powered Reports</h2>
+<p class="text-muted">Ask a question in plain English, or select a report from the dropdown below.</p>
+
+<form method="get" asp-action="AskReport" class="row g-2 align-items-end mb-3">
+    <div class="col-md-6">
+        <label for="question" class="form-label fw-semibold">Ask a question</label>
+        <input type="text" id="question" name="question" class="form-control"
+               placeholder="e.g. Show me patients named Ethan"
+               value="@Model.Question" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-success">Ask</button>
+    </div>
+</form>
+
+@if (Model.AppliedFilters.Any())
+{
+    <div class="mb-3">
+        <span class="text-muted me-2">AI-applied filters:</span>
+        @foreach (var f in Model.AppliedFilters)
+        {
+            var opLabel = f.Operator switch
+            {
+                "equals" => "=",
+                "notEquals" => "!=",
+                "contains" => "contains",
+                "greaterThan" => ">",
+                "greaterThanOrEqual" => ">=",
+                "lessThan" => "<",
+                "lessThanOrEqual" => "<=",
+                _ => f.Operator
+            };
+            var isSkipped = f.Status == "skipped";
+            var badgeClass = isSkipped ? "bg-danger" : "bg-info text-dark";
+            var style = isSkipped
+                ? "font-size: 0.85rem; text-decoration: line-through;"
+                : "font-size: 0.85rem;";
+            <span class="badge @badgeClass me-1 px-2 py-1" style="@style"
+                  title="@(isSkipped ? "Filter could not be applied" : "Filter applied")">
+                @f.Table.@f.Field @opLabel <strong>@f.Value</strong>
+            </span>
+        }
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(Model.BrainError))
+{
+    <div class="alert alert-warning">
+        <strong>AI:</strong> @Model.BrainError
+    </div>
+}
+
+<hr class="my-3" />
 
 <form method="get" asp-action="HtmlReports" class="row g-2 align-items-end mb-3">
     <div class="col-auto">
-        <label for="report" class="form-label fw-semibold">Report</label>
+        <label for="report" class="form-label fw-semibold">Or select a report</label>
         <select id="report" name="report" class="form-select">
             <option value="">-- Select a report --</option>
             @foreach (var (value, label) in PatientReports.Models.ReportsHubViewModel.AvailableReports)
@@ -25,26 +76,28 @@
         </select>
     </div>
     <div class="col-auto">
-        <button type="submit" class="btn btn-primary">Generate HTML Report</button>
+        <button type="submit" class="btn btn-primary">Generate Report</button>
     </div>
     @if (!string.IsNullOrEmpty(Model.SelectedReport))
     {
         <div class="col-auto">
             <a class="btn btn-outline-secondary" target="_blank"
-               asp-action="HtmlReport" asp-route-report="@Model.SelectedReport">Open in new tab</a>
+               asp-action="HtmlReport" asp-route-report="@Model.SelectedReport"
+               asp-route-question="@Model.Question"
+               asp-route-spec="@Model.QuerySpecB64">Open in new tab</a>
         </div>
     }
 </form>
 
 @if (string.IsNullOrEmpty(Model.SelectedReport))
 {
-    <div class="alert alert-secondary">Select a report above and click <strong>Generate HTML Report</strong>.</div>
+    <div class="alert alert-secondary">Ask a question above or select a report and click <strong>Generate Report</strong>.</div>
 }
 else
 {
     <div class="border rounded">
         <iframe title="HTML report"
-                src="@Url.Action("HtmlReport", "Reports", new { report = Model.SelectedReport })"
+                src="@Url.Action("HtmlReport", "Reports", new { report = Model.SelectedReport, question = Model.Question, spec = Model.QuerySpecB64 })"
                 style="width:100%; height:80vh; border:0;"></iframe>
     </div>
 }

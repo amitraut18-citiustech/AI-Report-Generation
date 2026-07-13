@@ -1,104 +1,104 @@
 (function () {
   "use strict";
 
-  // Column order and field mapping straight from the thought file / PatientReportViewModel.
-  var COLUMNS = [
-    { key: "firstName", label: "First Name" },
-    { key: "lastName", label: "Last Name" },
-    { key: "gender", label: "Gender" },
-    { key: "dateOfBirth", label: "Date of Birth", format: formatShortDate },
-    { key: "contactNumber", label: "Contact Number" },
-    { key: "email", label: "Email" },
-    { key: "phoneNumber", label: "Phone Number" }
-  ];
-
   function getData() {
     return window.REPORT_DATA || { parameters: {}, rows: [], narrative: "", meta: {} };
   }
 
-  // Mirrors DateTime.ToShortDateString() default en-US pattern (M/d/yyyy, no leading zeros).
-  function formatShortDate(value) {
-    if (value === null || value === undefined || value === "") return "";
+  /**
+   * Format an ISO date string or date-like value as MM/dd/yyyy.
+   * Returns the original value if parsing fails.
+   */
+  function formatDate(value) {
+    if (!value) return "";
     var d = new Date(value);
     if (isNaN(d.getTime())) return String(value);
-    var month = d.getMonth() + 1;
-    var day = d.getDate();
-    var year = d.getFullYear();
-    return month + "/" + day + "/" + year;
+    var mm = String(d.getMonth() + 1).padStart(2, "0");
+    var dd = String(d.getDate()).padStart(2, "0");
+    var yyyy = d.getFullYear();
+    return mm + "/" + dd + "/" + yyyy;
   }
 
-  function cellValue(row, column) {
-    var raw = row[column.key];
-    if (raw === null || raw === undefined) raw = "";
-    return column.format ? column.format(raw) : String(raw);
+  /** Escape HTML special characters to prevent XSS. */
+  function esc(value) {
+    if (value == null) return "";
+    var s = String(value);
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
-  // Rows arrive already ordered by lastName (ascending) from the data service — preserve order.
-  function renderRows(tbody, rows) {
-    tbody.textContent = "";
-    rows.forEach(function (row) {
-      var tr = document.createElement("tr");
-      COLUMNS.forEach(function (column) {
-        var td = document.createElement("td");
-        td.textContent = cellValue(row, column);
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
+  /**
+   * Render all patient rows into the table body.
+   * Applies alternating row striping (odd rows #F2F2F2, even rows white).
+   */
+  function renderRows(rows) {
+    var tbody = document.querySelector("[data-rows]");
+    if (!tbody) return;
+
+    if (!rows.length) {
+      tbody.innerHTML = "";
+      return;
+    }
+
+    var html = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var cls = (i % 2 === 0) ? "row-odd" : "row-even"; // first row is odd (1-based)
+      html.push(
+        '<tr class="' + cls + '">' +
+          "<td>" + esc(r.firstName) + "</td>" +
+          "<td>" + esc(r.lastName) + "</td>" +
+          "<td>" + esc(r.gender) + "</td>" +
+          "<td>" + esc(formatDate(r.dateOfBirth)) + "</td>" +
+          "<td>" + esc(r.contactNumber) + "</td>" +
+          "<td>" + esc(r.email) + "</td>" +
+          "<td>" + esc(r.phoneNumber) + "</td>" +
+        "</tr>"
+      );
+    }
+    tbody.innerHTML = html.join("");
   }
 
-  function renderNarrative(el, text) {
+  /** Show or hide the empty-state message. */
+  function toggleEmpty(hasRows) {
+    var el = document.querySelector("[data-empty]");
+    if (el) {
+      el.hidden = hasRows;
+    }
+  }
+
+  /** Render the LLM narrative section if present. */
+  function renderNarrative(narrative) {
+    var el = document.querySelector("[data-narrative]");
     if (!el) return;
-    if (text && String(text).trim() !== "") {
-      el.textContent = text;
+    if (narrative) {
+      el.textContent = narrative;
       el.hidden = false;
     } else {
       el.hidden = true;
     }
   }
 
-  function renderFooter(data) {
-    var meta = data.meta || {};
-    var generatedEl = document.querySelector("[data-generated]");
-    var executedEl = document.querySelector("[data-executed-by]");
-    var rowCountEl = document.querySelector("[data-row-count]");
-
-    if (generatedEl && meta.generatedAt) {
-      var g = new Date(meta.generatedAt);
-      generatedEl.textContent = "Generated: " +
-        (isNaN(g.getTime()) ? String(meta.generatedAt) : g.toLocaleString());
+  /** Populate the footer with generation metadata. */
+  function renderFooter(meta) {
+    var genEl = document.querySelector("[data-generated]");
+    var byEl = document.querySelector("[data-executed-by]");
+    if (genEl && meta.generatedAt) {
+      genEl.textContent = "Generated: " + formatDate(meta.generatedAt);
     }
-    if (executedEl && meta.executedBy) {
-      executedEl.textContent = "Executed by: " + meta.executedBy;
+    if (byEl && meta.executedBy) {
+      byEl.textContent = "Executed by: " + meta.executedBy;
     }
-    if (rowCountEl) {
-      var count = typeof meta.rowCount === "number"
-        ? meta.rowCount
-        : (Array.isArray(data.rows) ? data.rows.length : 0);
-      rowCountEl.textContent = "Patients: " + count;
-    }
-  }
-
-  function renderEmpty(show) {
-    var emptyEl = document.querySelector("[data-empty]");
-    var tableEl = document.querySelector("[data-table]");
-    if (emptyEl) emptyEl.hidden = !show;
-    if (tableEl) tableEl.hidden = show;
   }
 
   document.addEventListener("DOMContentLoaded", function () {
     var data = getData();
     var rows = Array.isArray(data.rows) ? data.rows : [];
+    var meta = data.meta || {};
 
-    renderNarrative(document.querySelector("[data-narrative]"), data.narrative);
-    renderFooter(data);
-
-    if (!rows.length) {
-      renderEmpty(true);
-      return;
-    }
-
-    renderEmpty(false);
-    renderRows(document.querySelector("[data-rows]"), rows);
+    renderRows(rows);
+    toggleEmpty(rows.length > 0);
+    renderNarrative(data.narrative);
+    renderFooter(meta);
   });
 })();

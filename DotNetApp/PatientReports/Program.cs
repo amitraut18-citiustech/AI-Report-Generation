@@ -16,10 +16,21 @@ Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddScoped<PatientDataService>();
+builder.Services.AddScoped<ReportQueryService>();
 builder.Services.AddHttpClient<RdlRenderClient>(client =>
 {
     var baseUrl = builder.Configuration["RdlRenderService:BaseUrl"] ?? "http://localhost:5250/";
     client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHttpClient<ReportBrainClient>(client =>
+{
+    var baseUrl = builder.Configuration["ReportBrain:BaseUrl"] ?? "http://127.0.0.1:8080/";
+    client.BaseAddress = new Uri(baseUrl);
+    // The brain service calls Ollama which can be slow on large prompts.
+    // 90s allows the decode + summarize round-trip without timing out,
+    // while still failing fast if the service is truly unreachable.
+    client.Timeout = TimeSpan.FromSeconds(90);
 });
 
 var app = builder.Build();

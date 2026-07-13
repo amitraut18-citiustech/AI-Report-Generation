@@ -14,7 +14,17 @@ public class ReportsHubViewModel
     public string? MinAge { get; set; }
     public string? MaxAge { get; set; }
 
-    // Options for the report dropdown: value -> display label.
+    public string? Question { get; set; }
+    public string? BrainError { get; set; }
+    public List<QueryFilter> AppliedFilters { get; set; } = new();
+
+    /// <summary>
+    /// Base64-encoded QuerySpec JSON, passed via query string so it survives
+    /// the redirect chain and reaches the iframe request (unlike TempData,
+    /// which is cookie-based and races with the iframe's HTTP request).
+    /// </summary>
+    public string? QuerySpecB64 { get; set; }
+
     public static readonly (string Value, string Label)[] AvailableReports =
     {
         ("patient", "Patient Report"),

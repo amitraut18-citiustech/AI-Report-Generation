@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using PatientReports.DataServices;
@@ -10,21 +11,28 @@ public class ReportsController : Controller
     private readonly PatientDataService _dataService;
     private readonly PdfReportService _pdfService;
     private readonly RdlRenderClient _rdlRenderClient;
+    private readonly ReportBrainClient _brainClient;
+    private readonly ReportQueryService _queryService;
     private readonly IWebHostEnvironment _env;
     private readonly IConfiguration _config;
+    private readonly ILogger<ReportsController> _logger;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
     };
 
-    public ReportsController(PatientDataService dataService, PdfReportService pdfService, RdlRenderClient rdlRenderClient, IWebHostEnvironment env, IConfiguration config)
+    public ReportsController(PatientDataService dataService, PdfReportService pdfService, RdlRenderClient rdlRenderClient, ReportBrainClient brainClient, ReportQueryService queryService, IWebHostEnvironment env, IConfiguration config, ILogger<ReportsController> logger)
     {
         _dataService = dataService;
         _pdfService = pdfService;
         _rdlRenderClient = rdlRenderClient;
+        _brainClient = brainClient;
+        _queryService = queryService;
         _env = env;
         _config = config;
+        _logger = logger;
     }
 
     // Resolves the existing plugin-generated HTML templates folder (no copies in
@@ -53,6 +61,48 @@ public class ReportsController : Controller
             "Could not locate HTMLReportsFolder. Set ReportForge:HtmlReportsPath in appsettings.json.");
     }
 
+    /// <summary>
+    /// Encode a QuerySpec to a URL-safe Base64 string for query-string transport.
+    /// </summary>
+    private string EncodeQuerySpec(QuerySpec spec)
+    {
+        var json = JsonSerializer.Serialize(spec, JsonOpts);
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
+    }
+
+    /// <summary>
+    /// Decode a Base64-encoded QuerySpec from a query-string parameter.
+    /// Returns null if the input is missing, empty, or malformed.
+    /// </summary>
+    private QuerySpec? DecodeQuerySpec(string? specB64)
+    {
+        if (string.IsNullOrWhiteSpace(specB64)) return null;
+        try
+        {
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(specB64));
+            return JsonSerializer.Deserialize<QuerySpec>(json, JsonOpts);
+        }
+        catch
+        {
+            _logger.LogWarning("Failed to decode spec query parameter");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Maps a brain report key to the primary EF Core table name, used to
+    /// default any filter that lacks an explicit table.
+    /// </summary>
+    private static string PrimaryTableForReport(string brainReport)
+    {
+        return brainReport switch
+        {
+            "transplant_event" => "TransplantEvents",
+            "patient_clinical_summary" => "TransplantEvents",
+            _ => "Patients",
+        };
+    }
+
     // Unified reports hub: a report dropdown + a single "Generate Report" button.
     // The selected report renders below the selector via the RdlView iframe.
     // fromDate/toDate only apply to the transplant report's visit-date filter.
@@ -72,35 +122,120 @@ public class ReportsController : Controller
     // plugin-generated static HTML templates, populated by the existing .NET
     // data logic. The selected report renders in an iframe (the standalone
     // generated template served by HtmlReport).
-    public IActionResult HtmlReports(string? report)
+    public IActionResult HtmlReports(string? report, string? question, string? brainError, string? spec)
     {
-        return View(new ReportsHubViewModel { SelectedReport = report });
+        var vm = new ReportsHubViewModel
+        {
+            SelectedReport = report,
+            Question = question,
+            BrainError = brainError,
+            QuerySpecB64 = spec,
+        };
+
+        // Decode the spec to display the applied-filters badges in the hub page.
+        var querySpec = DecodeQuerySpec(spec);
+        if (querySpec != null)
+            vm.AppliedFilters = querySpec.Filters;
+
+        return View(vm);
+    }
+
+    public async Task<IActionResult> AskReport(string question)
+    {
+        if (string.IsNullOrWhiteSpace(question))
+            return RedirectToAction(nameof(HtmlReports));
+
+        try
+        {
+            var decoded = await _brainClient.DecodePromptAsync(question);
+
+            if (decoded.Report == "UNKNOWN" || decoded.Confidence < 0.3)
+            {
+                var msg = decoded.Message ?? "No matching report found for your question.";
+                return RedirectToAction(nameof(HtmlReports), new { brainError = msg, question });
+            }
+
+            var reportKey = MapDecodedReport(decoded.Report);
+            if (reportKey == null)
+            {
+                return RedirectToAction(nameof(HtmlReports), new
+                {
+                    brainError = $"Brain identified report '{decoded.Report}' but it is not available in the app.",
+                    question
+                });
+            }
+
+            // Merge top-level filters into Query (handles older brain versions
+            // that return filters outside the query object) and default any
+            // filter with a missing table to the primary entity.
+            decoded.NormalizeFilters(PrimaryTableForReport(decoded.Report));
+
+            // Pass the query spec as a Base64-encoded query parameter so it
+            // survives the redirect chain and reaches the iframe request.
+            // TempData (cookie-based) was unreliable here because the iframe's
+            // HTTP request fires before the browser processes the Set-Cookie
+            // from the hub page response.
+            string? specB64 = null;
+            if (decoded.Query.Filters.Count > 0)
+                specB64 = EncodeQuerySpec(decoded.Query);
+
+            return RedirectToAction(nameof(HtmlReports), new { report = reportKey, question, spec = specB64 });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Brain service call failed for question: {Question}", question);
+            return RedirectToAction(nameof(HtmlReports), new
+            {
+                brainError = "AI brain service is unavailable. Please select a report from the dropdown.",
+                question
+            });
+        }
+    }
+
+    private static string? MapDecodedReport(string brainReport)
+    {
+        return brainReport switch
+        {
+            "patient" => "patient",
+            "patient_demographics" => "patient",
+            "blood_type_distribution" => "patient",
+            "transplant_event" => "transplant",
+            "patient_clinical_summary" => "clinical",
+            _ => null,
+        };
     }
 
     // Serves a generated HTML template (from HtmlTemplates/) populated with
     // window.REPORT_DATA from the existing .NET data services. The report's
     // JavaScript is inlined so the page is fully self-contained.
-    public async Task<IActionResult> HtmlReport(string report, string? fromDate, string? toDate, string? minAge, string? maxAge)
+    public async Task<IActionResult> HtmlReport(string report, string? question, string? spec, string? fromDate, string? toDate, string? minAge, string? maxAge)
     {
+        // Read the query spec from the query-string parameter (Base64-encoded).
+        var querySpec = DecodeQuerySpec(spec);
+        var hasBrainQuery = querySpec != null && querySpec.Filters.Count > 0;
+
         string key;
         object rows;
+        string table = "Patients";
         object parameters = new { };
 
         switch (report)
         {
             case "patient":
                 key = "patient";
-                rows = await _dataService.GetPatientReportAsync();
+                rows = hasBrainQuery
+                    ? await _queryService.QueryPatientsAsync(querySpec!)
+                    : await _dataService.GetPatientReportAsync();
                 break;
             case "transplant":
                 key = "transplant_event";
-                rows = await _dataService.GetTransplantEventReportAsync();
+                rows = hasBrainQuery
+                    ? await _queryService.QueryTransplantEventsAsync(querySpec!)
+                    : await _dataService.GetTransplantEventReportAsync();
+                table = "TransplantEvents";
                 break;
             case "clinical":
                 key = "patient_clinical_summary";
-                // Apply the filter query-string values (blank -> defaults) as data filters,
-                // and echo the applied values back as REPORT_DATA.parameters. The template's
-                // filter form reloads this URL with new values; we re-filter here.
                 var from = DateTime.TryParse(fromDate, out var f) ? f : new DateTime(2026, 1, 1);
                 var to = DateTime.TryParse(toDate, out var t) ? t : new DateTime(2026, 12, 31);
                 var minA = int.TryParse(minAge, out var mn) ? mn : 0;
@@ -119,11 +254,30 @@ public class ReportsController : Controller
         }
 
         var rowList = (System.Collections.ICollection)rows;
+        var narrative = "";
+        object? chart = null;
+
+        if (!string.IsNullOrWhiteSpace(question))
+        {
+            try
+            {
+                var summary = await _brainClient.SummarizeAsync(question, rows, rowList.Count, table);
+                narrative = summary.Summary;
+                if (summary.Chart.HasValue && summary.Chart.Value.ValueKind != JsonValueKind.Null)
+                    chart = summary.Chart;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Brain /summarize failed, proceeding without narrative");
+            }
+        }
+
         var reportData = new
         {
             parameters,
             rows,
-            narrative = "",
+            narrative,
+            chart,
             meta = new
             {
                 generatedAt = DateTime.UtcNow.ToString("o"),
@@ -137,9 +291,33 @@ public class ReportsController : Controller
         var js = await System.IO.File.ReadAllTextAsync(Path.Combine(dir, key + ".js"));
         var json = JsonSerializer.Serialize(reportData, JsonOpts);
 
-        // Inject the data at the marker and inline the report JS (self-contained).
         html = html.Replace("<!-- REPORT_DATA -->", $"<script>window.REPORT_DATA = {json};</script>");
         html = html.Replace($"<script src=\"{key}.js\" defer></script>", $"<script>{js}</script>");
+
+        html = html.Replace("</body>", @"<script src=""https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js""></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var d = window.REPORT_DATA;
+  if (!d || !d.chart || !d.chart.type) return;
+  var anchor = document.querySelector('[data-narrative]') || document.querySelector('.report__footer');
+  if (!anchor) return;
+  var wrap = document.createElement('section');
+  wrap.style.cssText = 'max-width:600px;margin:1.5rem auto;';
+  var canvas = document.createElement('canvas');
+  wrap.appendChild(canvas);
+  anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
+  new Chart(canvas, {
+    type: d.chart.type,
+    data: {
+      labels: d.chart.labels || [],
+      datasets: [{ label: d.chart.title || '', data: d.chart.values || [],
+        backgroundColor: ['#4e79a7','#f28e2b','#e15759','#76b7b2','#59a14f','#edc948','#b07aa1','#ff9da7','#9c755f','#bab0ac'] }]
+    },
+    options: { responsive: true, plugins: { legend: { display: d.chart.type === 'pie' } } }
+  });
+});
+</script>
+</body>");
 
         return Content(html, "text/html");
     }

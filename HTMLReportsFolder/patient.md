@@ -1,95 +1,73 @@
 # Patient Report
 
-**Report key:** `patient`
-
 ## Purpose
-A flat listing of all patients with their demographic and contact details, ordered by
-last name. It answers: "Who are our patients and how do we reach them?" There is no
-filtering, grouping, aggregation, or summary — every patient row is shown exactly once.
+
+A flat listing of all patients with their contact and demographic information, ordered alphabetically by last name. This is a direct migration of the legacy SSRS Patient Report (`PatientReport.rdl`) and its Razor view (`PatientReport.cshtml`).
 
 ## Columns
-Rendered left-to-right in this exact order:
 
-| # | Header | Row key (`rows[].`) | Meaning | Formatting |
-|---|--------|---------------------|---------|------------|
-| 1 | First Name | `firstName` | Patient first name | as-is |
-| 2 | Last Name | `lastName` | Patient last name; also the incoming sort key | as-is |
-| 3 | Gender | `gender` | Patient gender | as-is |
-| 4 | Date of Birth | `dateOfBirth` | Patient date of birth | short date (`M/d/yyyy`) |
-| 5 | Contact Number | `contactNumber` | Contact number | as-is |
-| 6 | Email | `email` | Email address | as-is |
-| 7 | Phone Number | `phoneNumber` | Phone number | as-is |
+| # | Header Label | Row Key (`camelCase`) | Source Field | Description |
+|---|---|---|---|---|
+| 1 | First Name | `firstName` | Patients.FirstName | Patient first name |
+| 2 | Last Name | `lastName` | Patients.LastName | Patient last name |
+| 3 | Gender | `gender` | Patients.Gender | Patient gender |
+| 4 | Date of Birth | `dateOfBirth` | Patients.DateOfBirth | Date of birth, formatted as MM/dd/yyyy |
+| 5 | Contact Number | `contactNumber` | Patients.ContactNumber | Contact phone number |
+| 6 | Email | `email` | Patients.Email | Email address |
+| 7 | Phone | `phoneNumber` | Patients.PhoneNumber | Phone number |
 
-## Parameters / filters
-**None.** The report takes no arguments and returns all patient rows. No "filters applied"
-strip is shown (the `[data-filters]` element stays hidden).
+## Filters / Parameters
 
-## Business rules implemented
-- **No filtering** — all patient rows are rendered.
-- **Ordering** — rows arrive already ordered ascending by `lastName` from the data
-  service. The JS **preserves incoming order** and does not re-sort.
-- **Date of Birth formatting** — `dateOfBirth` is formatted to match the Razor view's
-  `DateTime.ToShortDateString()`, i.e. the default en-US pattern `M/d/yyyy` with no
-  leading zeros. All other columns render directly.
-- **No aggregations / summary** — no summary banner or totals card (footer shows a simple
-  patient count derived from `meta.rowCount`, purely as chrome).
-- **No conditional formatting / suppression** — none defined in the source.
+None. This report takes no user-facing filter parameters. All patients are returned by the data service. No filter form is rendered.
 
-## Data contract
-This report renders only from `window.REPORT_DATA`:
+## Business Rules Implemented (view-level only)
+
+- **Date formatting:** `dateOfBirth` is formatted as `MM/dd/yyyy` (matching the RDL expression `=Format(Fields!DateOfBirth.Value, "MM/dd/yyyy")`).
+- **Alternating row striping:** Odd rows (1-based) get background `#F2F2F2`, even rows get white, matching the original RDL `IIF(RowNumber(Nothing) Mod 2 = 1, ...)` expression.
+- **Ordering:** Rows arrive pre-sorted by `lastName` ascending from the host. The JS preserves incoming order.
+- **No aggregations or summaries** are displayed (consistent with the original report).
+
+## Data Contract
+
+Rows arrive **pre-filtered** (in this case, all patients with no filter applied). The JS renders `rows` as given and never re-queries or filters.
 
 ```js
 window.REPORT_DATA = {
-  parameters: {},                 // report takes no parameters
+  parameters: {},           // no parameters for this report
   rows: [
     {
-      firstName: "Jane",
-      lastName: "Doe",
-      gender: "Female",
-      dateOfBirth: "1985-04-12",  // ISO-8601 or any Date-parseable string
-      contactNumber: "555-0100",
-      email: "jane.doe@example.com",
-      phoneNumber: "555-0101"
+      "firstName": "string",
+      "lastName": "string",
+      "gender": "string",
+      "dateOfBirth": "ISO-8601 date string",
+      "contactNumber": "string",
+      "email": "string",
+      "phoneNumber": "string"
     }
-    // ...more rows, already ordered by lastName ascending
+    // ... one object per patient
   ],
-  narrative: "",                   // optional LLM summary; shown only if non-empty
-  meta: { generatedAt: "2026-07-10T10:00:00Z", executedBy: "jdoe", rowCount: 1 }
+  narrative: "",            // LLM-generated summary; may be empty
+  meta: {
+    generatedAt: "ISO-8601",
+    executedBy: "string",
+    rowCount: 0
+  }
 };
 ```
 
-- Row keys mirror `PatientReportViewModel` in camelCase. **No derived fields.**
-- If `REPORT_DATA` is missing or `rows` is empty, a visible "No data available." empty
-  state is shown and the table is hidden, so the HTML can be opened standalone for review.
-- Fully self-contained: no network calls and no external CSS/JS/fonts/images.
+### Property name mapping (PascalCase DTO to camelCase row key)
 
-### .NET host integration
-The HTML contains an injection marker immediately before the report script:
+| ViewModel Property | Row Key |
+|---|---|
+| FirstName | firstName |
+| LastName | lastName |
+| Gender | gender |
+| DateOfBirth | dateOfBirth |
+| ContactNumber | contactNumber |
+| Email | email |
+| PhoneNumber | phoneNumber |
 
-```html
-<!-- REPORT_DATA -->
-<script src="patient.js" defer></script>
-```
+## Deviations from Source
 
-At runtime the .NET host serializes `GetPatientReportAsync()` (System.Text.Json →
-camelCase, ISO-8601 dates) and replaces the marker with
-`<script>window.REPORT_DATA = {…};</script>`. The inline script is non-deferred, so it runs
-before the deferred `patient.js`. Serve `patient.html` and `patient.js` from the same URL
-path (the `<script src>` is relative).
-
-## Deviations from source
-- **Last column header** — uses "Phone Number" (the Razor view label), not the RDL's
-  "Phone". Per the thought file, the Razor label is authoritative for the .NET app. See
-  the flagged ambiguity below.
-- **Footer** — the original Razor view has no footer; a neutral footer (generated
-  timestamp, executed-by, patient count) is added from `meta` as standard report chrome.
-  It carries no business logic.
-- **Styling** — Bootstrap `table table-striped table-bordered table-dark` from the Razor
-  view is reproduced with equivalent self-contained inline CSS (striped rows, bordered
-  cells, dark header) since no external assets are permitted.
-
-## Open questions carried from the thought file
-- Minor label discrepancy: RDL header reads "Phone" while the Razor view reads "Phone
-  Number". Implemented as "Phone Number" (Razor assumed authoritative) — please confirm.
-- The EF Core database provider is not evident in the source files. It does not affect
-  this static template (rendering is provider-agnostic), noted for completeness only.
+- **Date format nuance:** The Razor view used `ToShortDateString()` (locale-dependent, typically `M/d/yyyy` on US systems without zero-padding), while the RDL used `MM/dd/yyyy` (zero-padded). This migration uses `MM/dd/yyyy` (zero-padded), matching the RDL.
+- **No page header/footer bands:** The original RDL defined an empty 0.5in page header band with no content. This is omitted since it had no visible elements.

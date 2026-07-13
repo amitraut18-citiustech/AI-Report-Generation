@@ -5,70 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Transplant Event Report</title>
   <style>
-    :root {
-      --fg: #1a1a1a;
-      --muted: #555;
-      --border: #cfcfcf;
-      --band: #eef4fb;
-      --band-border: #b9d3ef;
-      --head-bg: #f4f6f8;
-    }
-    * { box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-      color: var(--fg);
-      margin: 0;
-      padding: 1.5rem;
-      background: #fff;
-      line-height: 1.4;
-    }
-    .report { max-width: 1100px; margin: 0 auto; }
-    .report__title { font-size: 1.5rem; font-weight: 700; text-align: center; margin: 0 0 0.75rem; }
-    .report__filters { color: var(--muted); font-size: 0.9rem; text-align: center; margin: 0 0 1rem; }
-    .report__summary {
-      background: var(--band);
-      border: 1px solid var(--band-border);
-      border-radius: 6px;
-      padding: 0.6rem 0.9rem;
-      margin: 0 0 1rem;
-      font-weight: 600;
-    }
-    .report__narrative {
-      border-left: 4px solid var(--band-border);
-      padding: 0.4rem 0.9rem;
-      margin: 0 0 1rem;
-      color: var(--muted);
-    }
-    table.report__table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    .report__table th, .report__table td {
-      border: 1px solid var(--border);
-      padding: 0.45rem 0.6rem;
-      text-align: left;
-      vertical-align: top;
-    }
-    .report__table thead th { background: var(--head-bg); font-weight: 700; }
-    .report__table tbody tr:nth-child(even) { background: #fafbfc; }
-    .report__empty {
-      padding: 1rem;
-      text-align: center;
-      color: var(--muted);
-      border: 1px dashed var(--border);
-      border-radius: 6px;
-    }
-    .report__footer {
-      margin-top: 1rem;
-      padding-top: 0.6rem;
-      border-top: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 0.8rem;
-      display: flex;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; padding: 1rem; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; font-size: 14px; color: #212529; background: #fff; }
+    .report { max-width: 1200px; margin: 0 auto; }
+    .report__title { text-align: center; font-size: 1.35rem; font-weight: 700; color: #1f3864; margin: 0 0 1rem; }
+    .report__filters { font-size: 0.85rem; color: #555; margin: 0 0 0.75rem; }
+    .report__summary { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; border-radius: 4px; padding: 0.6rem 1rem; margin-bottom: 1rem; font-weight: 600; }
+    .report__narrative { background: #f8f9fa; border-left: 3px solid #6c757d; padding: 0.6rem 1rem; margin-bottom: 1rem; font-size: 0.9rem; }
+    .report__table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+    .report__table thead th { background: #212529; color: #fff; font-weight: 700; text-align: left; padding: 6px 8px; white-space: nowrap; }
+    .report__table tbody td { padding: 6px 8px; border-bottom: 1px solid #dee2e6; vertical-align: middle; }
+    .report__table tbody tr:nth-child(odd) { background: #f2f2f2; }
+    .report__table tbody tr:nth-child(even) { background: #fff; }
+    .report__empty { text-align: center; padding: 2rem; color: #6c757d; font-style: italic; }
+    .report__footer { font-size: 0.8rem; color: #888; border-top: 1px solid #dee2e6; padding-top: 0.5rem; margin-top: 1rem; display: flex; justify-content: space-between; }
     @media print {
-      body { padding: 0; }
-      .report__table th, .report__table td { padding: 0.3rem 0.45rem; }
-      thead { display: table-header-group; }
+      body { padding: 0; font-size: 11px; }
+      .report__table thead th { background: #212529 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #fff !important; }
+      .report__table tbody tr:nth-child(odd) { background: #f2f2f2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .report__footer { page-break-inside: avoid; }
+    }
+    @media (max-width: 900px) {
+      .report__table { font-size: 0.8rem; }
+      .report__table thead th, .report__table tbody td { padding: 4px 5px; }
     }
   </style>
 </head>
@@ -80,7 +39,6 @@
     </header>
 
     <section class="report__summary" data-summary hidden></section>
-
     <section class="report__narrative" data-narrative hidden></section>
 
     <table class="report__table">
@@ -88,7 +46,7 @@
         <tr>
           <th scope="col">Patient</th>
           <th scope="col">Date of Visit</th>
-          <th scope="col">Date of Previous Visit</th>
+          <th scope="col">Previous Visit</th>
           <th scope="col">Transplant Date</th>
           <th scope="col">Infusion Date</th>
           <th scope="col">Event ID</th>

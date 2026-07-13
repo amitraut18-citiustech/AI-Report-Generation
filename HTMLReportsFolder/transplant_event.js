@@ -1,125 +1,134 @@
 (function () {
   "use strict";
 
-  // Column order matches the thought file's Layout section exactly.
-  // Total Transplants is injected separately (it echoes the overall row count).
-  var DATE_FIELDS = ["dateOfVisit", "dateOfPreviousVisit", "transplantDate", "infusionDate"];
+  /* ── helpers ──────────────────────────────────────────────────────── */
 
   function getData() {
     return window.REPORT_DATA || { parameters: {}, rows: [], narrative: "", meta: {} };
   }
 
-  // Match .NET ToShortDateString(): locale short date, no time component.
-  // Guard invalid/empty values by rendering them verbatim.
-  function toShortDate(value) {
-    if (value === null || value === undefined || value === "") return "";
+  /**
+   * Format an ISO-8601 date string as MM/dd/yyyy (matching the RDL format).
+   * Returns empty string for falsy / unparseable values.
+   */
+  function formatDate(value) {
+    if (!value) return "";
     var d = new Date(value);
     if (isNaN(d.getTime())) return String(value);
-    return d.toLocaleDateString();
+    var mm = String(d.getMonth() + 1).padStart(2, "0");
+    var dd = String(d.getDate()).padStart(2, "0");
+    var yyyy = d.getFullYear();
+    return mm + "/" + dd + "/" + yyyy;
   }
 
-  function textCell(row, value) {
-    var td = document.createElement("td");
-    td.textContent = value === null || value === undefined ? "" : String(value);
-    return td;
+  function esc(text) {
+    var el = document.createElement("span");
+    el.textContent = text == null ? "" : String(text);
+    return el.innerHTML;
   }
 
-  function dateCell(value) {
-    var td = document.createElement("td");
-    td.textContent = toShortDate(value);
-    return td;
-  }
+  /* ── per-patient transplant count ────────────────────────────────── */
 
-  // No parameters for this report; render a neutral placeholder line.
-  function renderFilters(el, params) {
-    if (!el) return;
-    var keys = params && typeof params === "object" ? Object.keys(params) : [];
-    if (!keys.length) {
-      el.textContent = "No filters applied — all transplant events.";
-      return;
+  /**
+   * Build a map { patientName -> count } by grouping rows on patientName.
+   * Consistent with the RDL render service logic (RdlRenderer.cs).
+   */
+  function buildTransplantCounts(rows) {
+    var counts = {};
+    for (var i = 0; i < rows.length; i++) {
+      var name = rows[i].patientName || "";
+      counts[name] = (counts[name] || 0) + 1;
     }
-    el.textContent = "Filters: " + keys.map(function (k) {
-      return k + " = " + params[k];
-    }).join("  ·  ");
+    return counts;
   }
 
-  // Banner: "Total Transplants: {rows.length}" (mirrors @Model.Count()).
-  function renderSummary(el, totalTransplants) {
+  /* ── rendering ───────────────────────────────────────────────────── */
+
+  function renderFiltersEcho(params) {
+    var el = document.querySelector("[data-filters]");
     if (!el) return;
-    el.textContent = "Total Transplants: " + totalTransplants;
+    var parts = [];
+    if (params.fromDate) parts.push("From: " + formatDate(params.fromDate));
+    if (params.toDate) parts.push("To: " + formatDate(params.toDate));
+    if (parts.length) {
+      el.textContent = "Applied filters — " + parts.join(" | ");
+    } else {
+      el.style.display = "none";
+    }
+  }
+
+  function renderSummary(rowCount) {
+    var el = document.querySelector("[data-summary]");
+    if (!el) return;
+    el.textContent = "Total Transplants: " + rowCount;
     el.hidden = false;
   }
 
-  function renderNarrative(el, text) {
+  function renderNarrative(text) {
+    if (!text) return;
+    var el = document.querySelector("[data-narrative]");
     if (!el) return;
-    if (text && String(text).trim()) {
-      el.textContent = text;
-      el.hidden = false;
-    } else {
-      el.hidden = true;
-    }
+    el.textContent = text;
+    el.hidden = false;
   }
 
-  // Build one <tr> per row, in incoming order (rows arrive ordered by dateOfVisit).
-  // The "Total Transplants" column repeats the overall count on every row.
-  function renderRows(tbody, rows, totalTransplants) {
+  function renderTable(rows, transplantCounts) {
+    var tbody = document.querySelector("[data-rows]");
+    var emptyEl = document.querySelector("[data-empty]");
     if (!tbody) return;
-    tbody.textContent = "";
-    rows.forEach(function (row) {
-      var tr = document.createElement("tr");
-      tr.appendChild(textCell(row, row.patientName));        // Patient
-      tr.appendChild(dateCell(row.dateOfVisit));             // Date of Visit
-      tr.appendChild(dateCell(row.dateOfPreviousVisit));     // Date of Previous Visit
-      tr.appendChild(dateCell(row.transplantDate));          // Transplant Date
-      tr.appendChild(dateCell(row.infusionDate));            // Infusion Date
-      tr.appendChild(textCell(row, row.eventId));            // Event ID
-      tr.appendChild(textCell(row, row.transplantNumber));   // Transplant Number
-      tr.appendChild(textCell(row, totalTransplants));       // Total Transplants (overall count)
-      tr.appendChild(textCell(row, row.isInpatient));        // Inpatient ("Yes"/"No", pre-derived)
-      tbody.appendChild(tr);
-    });
+
+    if (!rows.length) {
+      if (emptyEl) emptyEl.hidden = false;
+      return;
+    }
+
+    var html = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var total = transplantCounts[r.patientName || ""] || 0;
+      html.push(
+        "<tr>" +
+          "<td>" + esc(r.patientName) + "</td>" +
+          "<td>" + esc(formatDate(r.dateOfVisit)) + "</td>" +
+          "<td>" + esc(formatDate(r.dateOfPreviousVisit)) + "</td>" +
+          "<td>" + esc(formatDate(r.transplantDate)) + "</td>" +
+          "<td>" + esc(formatDate(r.infusionDate)) + "</td>" +
+          "<td>" + esc(r.eventId) + "</td>" +
+          "<td>" + esc(r.transplantNumber) + "</td>" +
+          "<td>" + esc(total) + "</td>" +
+          "<td>" + esc(r.isInpatient) + "</td>" +
+        "</tr>"
+      );
+    }
+    tbody.innerHTML = html.join("");
   }
 
-  function renderFooter(data, rowCount) {
-    var gen = document.querySelector("[data-generated]");
-    var exec = document.querySelector("[data-executed-by]");
-    var meta = data.meta || {};
-    if (gen) {
-      var when = meta.generatedAt ? new Date(meta.generatedAt) : null;
-      var whenText = when && !isNaN(when.getTime()) ? when.toLocaleString() : (meta.generatedAt || "");
-      gen.textContent = whenText ? "Generated: " + whenText : "";
+  function renderFooter(meta) {
+    var genEl = document.querySelector("[data-generated]");
+    var byEl = document.querySelector("[data-executed-by]");
+    if (genEl && meta.generatedAt) {
+      genEl.textContent = "Generated: " + formatDate(meta.generatedAt);
     }
-    if (exec) {
-      var parts = [];
-      if (meta.executedBy) parts.push("Executed by: " + meta.executedBy);
-      parts.push("Rows: " + rowCount);
-      exec.textContent = parts.join("  ·  ");
+    if (byEl && meta.executedBy) {
+      byEl.textContent = "Run by: " + meta.executedBy;
     }
   }
 
-  function renderEmpty(show) {
-    var empty = document.querySelector("[data-empty]");
-    var table = document.querySelector(".report__table");
-    if (empty) empty.hidden = !show;
-    if (table) table.style.display = show ? "none" : "";
-  }
+  /* ── main ─────────────────────────────────────────────────────────── */
 
   document.addEventListener("DOMContentLoaded", function () {
     var data = getData();
     var rows = Array.isArray(data.rows) ? data.rows : [];
-    var totalTransplants = rows.length; // overall count, echoed in banner and every row
+    var params = data.parameters || {};
+    var meta = data.meta || {};
 
-    renderFilters(document.querySelector("[data-filters]"), data.parameters);
-    renderSummary(document.querySelector("[data-summary]"), totalTransplants);
-    renderNarrative(document.querySelector("[data-narrative]"), data.narrative);
+    renderFiltersEcho(params);
+    renderSummary(rows.length);
+    renderNarrative(data.narrative);
 
-    if (!rows.length) {
-      renderEmpty(true);
-    } else {
-      renderEmpty(false);
-      renderRows(document.querySelector("[data-rows]"), rows, totalTransplants);
-    }
+    var transplantCounts = buildTransplantCounts(rows);
+    renderTable(rows, transplantCounts);
 
-    renderFooter(data, totalTransplants);
+    renderFooter(meta);
   });
 })();

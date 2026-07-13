@@ -10,19 +10,29 @@ from .context_loader import PhiMarkers
 log = logging.getLogger(__name__)
 
 SUMMARIZE_PROMPT = """\
-You are a healthcare data analyst. Summarize the following query results
-in a way that is useful for a non-technical healthcare professional.
+You are a healthcare data analyst. Analyze the following query results
+and provide a summary useful for a non-technical healthcare professional.
 
 USER QUESTION: "{question}"
 QUERY RESULTS (JSON): {results_json}
 TOTAL ROWS: {row_count}
 
-Provide:
-1. A 2-3 sentence executive summary highlighting key findings
-2. Notable patterns or outliers
-3. Any data quality observations (e.g., NULL values, unexpected distributions)
+Respond with ONLY valid JSON, no other text:
+{{
+  "summary": "2-3 sentence executive summary highlighting key findings, notable patterns or outliers, and any data quality observations. Keep the tone professional and factual.",
+  "chart": {{
+    "type": "bar or pie or line",
+    "title": "Chart title",
+    "labels": ["label1", "label2"],
+    "values": [number1, number2]
+  }}
+}}
 
-Keep the tone professional and factual. Do not speculate beyond what the data shows.
+CHART RULES:
+- Use "pie" for proportions/distributions, "bar" for comparisons, "line" for trends
+- If the data has only 1 row or a chart doesn't make sense, set "chart" to null
+- Labels and values must come directly from the data
+- Keep to 10 or fewer categories
 
 IMPORTANT: The data has been de-identified. Use the identifiers exactly as they appear
 (e.g., Patient_001, P_001). Do not attempt to guess real names or identifiers."""
@@ -52,7 +62,7 @@ def summarize_with_claude(
             max_tokens=settings.claude_max_tokens,
             messages=[{"role": "user", "content": prompt}],
         )
-        narrative = response.content[0].text.strip()
+        raw = response.content[0].text.strip()
     except Exception:
         log.exception("Claude API call failed")
         return {
@@ -62,10 +72,23 @@ def summarize_with_claude(
             "error": "claude_api_failed",
         }
 
+    try:
+        parsed = json.loads(raw)
+        narrative = parsed.get("summary", raw)
+        chart = parsed.get("chart")
+        if chart and not isinstance(chart, dict):
+            chart = None
+    except json.JSONDecodeError:
+        narrative = raw
+        chart = None
+
     final_narrative = remap_narrative(narrative, anon_result.mapping)
 
-    return {
+    result = {
         "summary": final_narrative,
         "source": "claude",
         "anonymized": True,
     }
+    if chart:
+        result["chart"] = chart
+    return result
