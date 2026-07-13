@@ -112,7 +112,7 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
               <Paragraph>
                 <TextRuns>
                   <TextRun>
-                    <Value>="Filters  -  Visit dates: " &amp; Format(Parameters!FromDate.Value, "MM/dd/yyyy") &amp; " to " &amp; Format(Parameters!ToDate.Value, "MM/dd/yyyy") &amp; "     |     Patient status: " &amp; Parameters!Status.Value</Value>
+                    <Value>="Filters  -  Visit dates: " &amp; Format(Parameters!FromDate.Value, "MM/dd/yyyy") &amp; " to " &amp; Format(Parameters!ToDate.Value, "MM/dd/yyyy") &amp; "     |     Age: " &amp; Parameters!MinAge.Value &amp; " to " &amp; Parameters!MaxAge.Value &amp; "     |     Patient status: " &amp; Parameters!Status.Value</Value>
                     <Style><FontFamily>Segoe UI</FontFamily><FontSize>9pt</FontSize><FontStyle>Italic</FontStyle><Color>#595959</Color></Style>
                   </TextRun>
                 </TextRuns>
@@ -459,16 +459,38 @@ ORDER BY f.Name, p.LastName, te.DateOfVisit, lr.TestName</CommandText>
       <Prompt>rptUser</Prompt>
       <Hidden>true</Hidden>
     </ReportParameter>
+    <ReportParameter Name="MinAge">
+      <DataType>Integer</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>0</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>Min age</Prompt>
+      <Hidden>true</Hidden>
+    </ReportParameter>
+    <ReportParameter Name="MaxAge">
+      <DataType>Integer</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>120</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>Max age</Prompt>
+      <Hidden>true</Hidden>
+    </ReportParameter>
   </ReportParameters>
   <ReportParametersLayout>
     <GridLayoutDefinition>
-      <NumberOfColumns>4</NumberOfColumns>
+      <NumberOfColumns>6</NumberOfColumns>
       <NumberOfRows>1</NumberOfRows>
       <CellDefinitions>
         <CellDefinition><ColumnIndex>0</ColumnIndex><RowIndex>0</RowIndex><ParameterName>FromDate</ParameterName></CellDefinition>
         <CellDefinition><ColumnIndex>1</ColumnIndex><RowIndex>0</RowIndex><ParameterName>ToDate</ParameterName></CellDefinition>
         <CellDefinition><ColumnIndex>2</ColumnIndex><RowIndex>0</RowIndex><ParameterName>Status</ParameterName></CellDefinition>
         <CellDefinition><ColumnIndex>3</ColumnIndex><RowIndex>0</RowIndex><ParameterName>rptUser</ParameterName></CellDefinition>
+        <CellDefinition><ColumnIndex>4</ColumnIndex><RowIndex>0</RowIndex><ParameterName>MinAge</ParameterName></CellDefinition>
+        <CellDefinition><ColumnIndex>5</ColumnIndex><RowIndex>0</RowIndex><ParameterName>MaxAge</ParameterName></CellDefinition>
       </CellDefinitions>
     </GridLayoutDefinition>
   </ReportParametersLayout>

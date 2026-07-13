@@ -9,18 +9,19 @@
       --fg: #1a1a1a;
       --muted: #555;
       --border: #cfcfcf;
-      --title: #1f3864;              /* report title / summary header bg */
-      --detail-head: #2e5496;        /* detail column header bg */
+      --title: #1f3864;              /* report title / facility band text */
+      --summary-head: #212529;       /* summary + detail column header bg */
       --facility-band: #dbe5f1;      /* facility band row bg */
       --risk-high: #f8d7da;          /* high-risk patient banner (red-subtle) */
       --risk-low: #d1e7dd;           /* normal patient banner (green-subtle) */
       --inpatient: #fff3cd;          /* inpatient setting highlight (yellow) */
+      --zebra: #f2f2f2;              /* zebra stripe */
       --oor: #b02a37;                /* out-of-range red */
       --ok: #0f5132;                 /* in-range green */
     }
     * { box-sizing: border-box; }
     body {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
       color: var(--fg);
       margin: 0;
       padding: 1.5rem;
@@ -29,108 +30,140 @@
     }
     .report { max-width: 1200px; margin: 0 auto; }
     .report__title {
-      font-size: 18pt;
+      font-size: 16pt;
       font-weight: 700;
       color: var(--title);
-      margin: 0 0 0.4rem;
+      margin: 0 0 0.75rem 0;
+    }
+
+    /* Interactive filter form */
+    .report__filterform {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fafbfc;
+      margin-bottom: 0.5rem;
+    }
+    .report__filterform label {
+      display: flex;
+      flex-direction: column;
+      font-size: 0.8rem;
+      color: var(--muted);
+      gap: 0.2rem;
+    }
+    .report__filterform input {
+      font: inherit;
+      padding: 0.3rem 0.4rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    .report__filterform button {
+      font: inherit;
+      padding: 0.4rem 0.9rem;
+      border: 1px solid var(--title);
+      background: var(--title);
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
     }
     .report__filters {
-      color: var(--muted);
-      font-size: 9pt;
       font-style: italic;
-      margin: 0 0 1.2rem;
-    }
-    .report__narrative {
-      border-left: 4px solid var(--facility-band);
-      padding: 0.4rem 0.9rem;
-      margin: 0 0 1.2rem;
+      font-size: 9pt;
       color: var(--muted);
+      margin: 0.25rem 0 1rem 0;
     }
-    .report__section-title {
-      font-size: 1.1rem;
+
+    .report__narrative {
+      margin: 0 0 1rem 0;
+      padding: 0.75rem 1rem;
+      background: #f4f7fb;
+      border-left: 3px solid var(--title);
+      border-radius: 0 4px 4px 0;
+    }
+
+    .section__title {
+      font-size: 12pt;
       font-weight: 700;
       color: var(--title);
-      margin: 1.4rem 0 0.6rem;
+      margin: 1.25rem 0 0.5rem 0;
     }
-    table.report__table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-    .report__table th, .report__table td {
+
+    table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+    .summary-table th, .summary-table td,
+    .detail-table th, .detail-table td {
       border: 1px solid var(--border);
-      padding: 0.4rem 0.55rem;
+      padding: 0.35rem 0.5rem;
       text-align: left;
       vertical-align: top;
     }
-
-    /* Facility Summary table */
-    .summary-table thead th {
-      background: var(--title);
-      color: #fff;
-      font-weight: 700;
-      text-align: center;
-    }
-    .summary-table td.num { text-align: center; }
-    .summary-table td.oor-hit { color: var(--oor); font-weight: 700; }
-
-    /* Clinical Detail table */
+    .summary-table thead th,
     .detail-table thead th {
-      background: var(--detail-head);
+      background: var(--summary-head);
       color: #fff;
       font-weight: 700;
     }
-    .detail-table .facility-band td {
+    .num { text-align: center; }
+
+    /* Facility Summary out-of-range cell */
+    .oor-cell { color: var(--oor); font-weight: 700; }
+
+    /* Detail grouping */
+    .facility-group { margin-bottom: 1.5rem; }
+    .facility-band {
       background: var(--facility-band);
       color: var(--title);
       font-weight: 700;
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--border);
     }
-    .detail-table .patient-banner td { font-size: 0.86rem; }
-    .detail-table .patient-banner.risk-high td { background: var(--risk-high); }
-    .detail-table .patient-banner.risk-low td { background: var(--risk-low); }
-    .detail-table .patient-banner .risk-pill {
-      display: inline-block;
-      padding: 0.05rem 0.5rem;
-      border-radius: 10px;
+    .patient-banner {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--border);
+      border-top: none;
+      font-size: 0.85rem;
+    }
+    .patient-banner.risk-high { background: var(--risk-high); }
+    .patient-banner.risk-low  { background: var(--risk-low); }
+    .patient-banner .pb-item { margin-right: 1rem; white-space: nowrap; }
+    .patient-banner .pb-label { color: var(--muted); }
+    .risk-badge {
       font-weight: 700;
-      border: 1px solid rgba(0,0,0,0.25);
+      padding: 0 0.35rem;
+      border-radius: 3px;
     }
-    .detail-table td.setting-inpatient { background: var(--inpatient); font-weight: 600; }
-    .detail-table td.flag-out { color: var(--oor); font-weight: 700; }
-    .detail-table td.flag-ok { color: var(--ok); }
-    .visit-subnote { display: block; color: var(--muted); font-size: 0.75rem; }
+
+    /* zebra + conditional detail cells */
+    .detail-table tbody tr.zebra { background: var(--zebra); }
+    .cell-inpatient { background: var(--inpatient) !important; }
+    .flag-out { color: var(--oor); font-weight: 700; }
+    .flag-ok  { color: var(--ok); }
 
     .report__empty {
-      padding: 1rem;
+      padding: 2rem;
       text-align: center;
       color: var(--muted);
       border: 1px dashed var(--border);
       border-radius: 6px;
-      margin-top: 1rem;
     }
+
     .report__footer {
-      margin-top: 1.4rem;
-      padding-top: 0.6rem;
-      border-top: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 0.8rem;
       display: flex;
       justify-content: space-between;
-      gap: 1.5rem;
-      flex-wrap: wrap;
+      margin-top: 1.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
     }
+
     @media print {
       body { padding: 0; }
-      @page { size: letter; margin: 0.5in; }
-      .report__table th, .report__table td { padding: 0.28rem 0.4rem; }
-      thead { display: table-header-group; }
-      tr { break-inside: avoid; }
-      /* keep conditional colors when printing */
-      .detail-table td.setting-inpatient,
-      .detail-table .patient-banner.risk-high td,
-      .detail-table .patient-banner.risk-low td,
-      .summary-table thead th,
-      .detail-table thead th,
-      .detail-table .facility-band td {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
+      .report__filterform { display: none; }
+      .facility-group { page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -138,55 +171,58 @@
   <main class="report" id="report">
     <header class="report__header">
       <h1 class="report__title">Patient Clinical Summary Report</h1>
-      <p class="report__filters" data-filters></p>
+
+      <!-- Interactive filter form: round-trips to the host via the query string.
+           The host re-queries with these values and re-injects REPORT_DATA.
+           The JS NEVER filters rows locally. -->
+      <form class="report__filterform" data-filter-form>
+        <label>Visit from
+          <input type="date" name="fromDate" />
+        </label>
+        <label>Visit to
+          <input type="date" name="toDate" />
+        </label>
+        <label>Min age
+          <input type="number" name="minAge" min="0" max="120" step="1" />
+        </label>
+        <label>Max age
+          <input type="number" name="maxAge" min="0" max="120" step="1" />
+        </label>
+        <button type="submit">Apply filters</button>
+      </form>
+
+      <p class="report__filters" data-filters><!-- applied-filters echo --></p>
     </header>
 
     <section class="report__narrative" data-narrative hidden></section>
 
-    <!-- Section 1: Facility Summary -->
-    <section data-section-summary hidden>
-      <h2 class="report__section-title">Facility Summary</h2>
-      <table class="report__table summary-table">
+    <section data-summary-section hidden>
+      <h2 class="section__title">Facility Summary</h2>
+      <table class="summary-table">
         <thead>
           <tr>
             <th scope="col">Facility</th>
-            <th scope="col"># Patients</th>
-            <th scope="col"># Events</th>
-            <th scope="col">Avg Age</th>
-            <th scope="col">Inpatient Events</th>
-            <th scope="col">Out-of-range Labs</th>
+            <th scope="col" class="num"># Patients</th>
+            <th scope="col" class="num"># Events</th>
+            <th scope="col" class="num">Avg Age</th>
+            <th scope="col" class="num">Inpatient Events</th>
+            <th scope="col" class="num">Out-of-range Labs</th>
           </tr>
         </thead>
         <tbody data-facility-summary></tbody>
       </table>
     </section>
 
-    <!-- Section 2: Clinical Detail (nested Facility -> Patient -> Event -> Lab) -->
-    <section data-section-detail hidden>
-      <h2 class="report__section-title">Clinical Detail by Facility, Patient and Transplant Event</h2>
-      <table class="report__table detail-table">
-        <thead>
-          <tr>
-            <th scope="col">Event</th>
-            <th scope="col">Visit Date</th>
-            <th scope="col">Provider</th>
-            <th scope="col">Donor</th>
-            <th scope="col">Setting</th>
-            <th scope="col">Test</th>
-            <th scope="col">Result</th>
-            <th scope="col">Reference</th>
-            <th scope="col">Flag</th>
-          </tr>
-        </thead>
-        <tbody data-detail></tbody>
-      </table>
+    <section data-detail-section hidden>
+      <h2 class="section__title">Clinical Detail by Facility, Patient and Transplant Event</h2>
+      <div data-detail></div>
     </section>
 
     <p class="report__empty" data-empty hidden>No data available for the selected filters.</p>
 
     <footer class="report__footer">
       <span data-generated></span>
-      <span data-pageinfo></span>
+      <span data-executed-by></span>
     </footer>
   </main>
 

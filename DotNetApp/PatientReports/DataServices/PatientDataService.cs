@@ -153,7 +153,13 @@ public class PatientDataService
     // event has no labs) that feeds the generated patient_clinical_summary.js
     // template via window.REPORT_DATA. This is the same multi-table graph the
     // SSRS report queries, projected to the template's row contract.
-    public async Task<List<ClinicalFlatRow>> GetClinicalFlatRowsAsync()
+    // Optional filters (used by the SSRS/RDL report path). Rows are filtered here
+    // because the RDL is rendered with fed data (its SQL WHERE never executes).
+    // fromDate/toDate filter the visit date; minAge/maxAge filter patient age;
+    // status filters patient status ("All" or null = no status filter).
+    public async Task<List<ClinicalFlatRow>> GetClinicalFlatRowsAsync(
+        DateTime? fromDate = null, DateTime? toDate = null,
+        int? minAge = null, int? maxAge = null, string? status = null)
     {
         var events = await _context.TransplantEvents
             .AsNoTracking()
@@ -169,6 +175,18 @@ public class PatientDataService
         foreach (var e in events)
         {
             var p = e.Patient;
+
+            // Apply the report filters.
+            if (fromDate.HasValue && e.DateOfVisit < fromDate.Value) continue;
+            if (toDate.HasValue && e.DateOfVisit > toDate.Value) continue;
+
+            var patientAge = CalculateAge(p.DateOfBirth);
+            if (minAge.HasValue && patientAge < minAge.Value) continue;
+            if (maxAge.HasValue && patientAge > maxAge.Value) continue;
+
+            if (!string.IsNullOrEmpty(status) && status != "All" &&
+                !string.Equals(p.Status, status, StringComparison.OrdinalIgnoreCase)) continue;
+
             var f = p.Facility;
             var primaryDx = PrimaryDiagnosis(p);
             var activeMeds = p.Medications.Count(m => m.IsActive);
