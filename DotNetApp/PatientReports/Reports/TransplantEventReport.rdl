@@ -126,7 +126,24 @@ ORDER BY te.DateOfVisit</CommandText>
               <RepeatOnNewPage>true</RepeatOnNewPage>
             </TablixMember>
             <TablixMember>
-              <Group Name="Details" />
+              <Group Name="Details">
+                <Filters>
+                  <Filter>
+                    <FilterExpression>=Fields!DateOfVisit.Value</FilterExpression>
+                    <Operator>GreaterThanOrEqual</Operator>
+                    <FilterValues>
+                      <FilterValue>=Parameters!FromDate.Value</FilterValue>
+                    </FilterValues>
+                  </Filter>
+                  <Filter>
+                    <FilterExpression>=Fields!DateOfVisit.Value</FilterExpression>
+                    <Operator>LessThanOrEqual</Operator>
+                    <FilterValues>
+                      <FilterValue>=Parameters!ToDate.Value</FilterValue>
+                    </FilterValues>
+                  </Filter>
+                </Filters>
+              </Group>
             </TablixMember>
           </TablixMembers>
         </TablixRowHierarchy>
@@ -136,6 +153,26 @@ ORDER BY te.DateOfVisit</CommandText>
     </ReportItems>
     <Height>2in</Height>
   </Body>
+  <ReportParameters>
+    <ReportParameter Name="FromDate">
+      <DataType>DateTime</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>=CDate("2026-01-01")</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>Visit date from</Prompt>
+    </ReportParameter>
+    <ReportParameter Name="ToDate">
+      <DataType>DateTime</DataType>
+      <DefaultValue>
+        <Values>
+          <Value>=CDate("2026-12-31")</Value>
+        </Values>
+      </DefaultValue>
+      <Prompt>Visit date to</Prompt>
+    </ReportParameter>
+  </ReportParameters>
   <Width>10.5in</Width>
   <Page>
     <PageHeader>

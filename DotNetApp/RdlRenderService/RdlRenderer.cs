@@ -31,7 +31,7 @@ namespace RdlRenderService
                         row.TotalTransplants = countsByPatient[row.PatientName];
                     }
                     return RenderReport("TransplantEventReport.rdl", "dsTransplantEvent",
-                        ToDataTable(transplantRows, null), null);
+                        ToDataTable(transplantRows, null), parameters);
 
                 case "clinical":
                     var columnOverrides = new Dictionary<string, string> { { "Mrn", "MRN" } };

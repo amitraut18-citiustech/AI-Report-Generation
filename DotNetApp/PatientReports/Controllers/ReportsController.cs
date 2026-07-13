@@ -55,9 +55,15 @@ public class ReportsController : Controller
 
     // Unified reports hub: a report dropdown + a single "Generate Report" button.
     // The selected report renders below the selector via the RdlView iframe.
-    public IActionResult Index(string? report)
+    // fromDate/toDate only apply to the transplant report's visit-date filter.
+    public IActionResult Index(string? report, string? fromDate, string? toDate)
     {
-        return View(new ReportsHubViewModel { SelectedReport = report });
+        return View(new ReportsHubViewModel
+        {
+            SelectedReport = report,
+            FromDate = fromDate ?? "2026-01-01",
+            ToDate = toDate ?? "2026-12-31",
+        });
     }
 
     // HTML-based reporting hub: proves the SSRS reports can be replaced by the
@@ -154,7 +160,7 @@ public class ReportsController : Controller
     // that project for why RDL rendering can't run in-process on .NET 8), and
     // serves it inline (no Content-Disposition) for the <iframe> on the Reports
     // hub page.
-    public async Task<IActionResult> RdlView(string report)
+    public async Task<IActionResult> RdlView(string report, string? fromDate, string? toDate)
     {
         byte[] pdf;
         switch (report)
@@ -163,7 +169,12 @@ public class ReportsController : Controller
                 pdf = await _rdlRenderClient.RenderAsync("patient", await _dataService.GetPatientReportAsync());
                 break;
             case "transplant":
-                pdf = await _rdlRenderClient.RenderAsync("transplant", await _dataService.GetTransplantEventReportAsync());
+                var transplantParameters = new Dictionary<string, string>
+                {
+                    ["FromDate"] = fromDate ?? "2026-01-01",
+                    ["ToDate"] = toDate ?? "2026-12-31",
+                };
+                pdf = await _rdlRenderClient.RenderAsync("transplant", await _dataService.GetTransplantEventReportAsync(), transplantParameters);
                 break;
             case "clinical":
                 var rows = await _dataService.GetClinicalFlatRowsAsync();

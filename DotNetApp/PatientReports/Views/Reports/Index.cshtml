@@ -23,6 +23,17 @@
             }
         </select>
     </div>
+    @if (Model.SelectedReport == "transplant")
+    {
+        <div class="col-auto">
+            <label for="fromDate" class="form-label fw-semibold">Visit date from</label>
+            <input type="date" id="fromDate" name="fromDate" class="form-control" value="@Model.FromDate" />
+        </div>
+        <div class="col-auto">
+            <label for="toDate" class="form-label fw-semibold">Visit date to</label>
+            <input type="date" id="toDate" name="toDate" class="form-control" value="@Model.ToDate" />
+        </div>
+    }
     <div class="col-auto">
         <button type="submit" class="btn btn-primary">Generate Report</button>
     </div>
@@ -43,7 +54,7 @@
 }
 else if (Model.SelectedReport is "patient" or "transplant" or "clinical")
 {
-    <iframe src="@Url.Action("RdlView", new { report = Model.SelectedReport })"
+    <iframe src="@Url.Action("RdlView", new { report = Model.SelectedReport, fromDate = Model.FromDate, toDate = Model.ToDate })"
             style="width:100%; height:900px; border:1px solid #ccc;"
             title="Report"></iframe>
 }
