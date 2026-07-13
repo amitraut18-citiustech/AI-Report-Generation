@@ -1,0 +1,267 @@
+using System.Linq.Expressions;
+using System.Reflection;
+using Microsoft.EntityFrameworkCore;
+using PatientReports.Data;
+using PatientReports.Models;
+
+namespace PatientReports.DataServices;
+
+public class ReportQueryService
+{
+    private readonly ApplicationDbContext _context;
+    private readonly ILogger<ReportQueryService> _logger;
+
+    private static readonly HashSet<string> AllowedOperators = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "equals", "notEquals", "contains",
+        "greaterThan", "greaterThanOrEqual",
+        "lessThan", "lessThanOrEqual"
+    };
+
+    private static readonly Dictionary<string, Dictionary<string, string>> NavPropertyMap = new()
+    {
+        ["Patients"] = new() { ["Facilities"] = "Facility" },
+        ["TransplantEvents"] = new() { ["Patients"] = "Patient", ["Providers"] = "Provider" },
+        ["Providers"] = new() { ["Facilities"] = "Facility" },
+        ["Diagnoses"] = new() { ["Patients"] = "Patient" },
+        ["Medications"] = new() { ["Patients"] = "Patient" },
+        ["LabResults"] = new() { ["TransplantEvents"] = "TransplantEvent" },
+    };
+
+    // Operators that are not meaningful for string comparisons. If the brain
+    // emits greaterThan/lessThan for a string field, the filter is skipped
+    // rather than silently degraded to equals.
+    private static readonly HashSet<string> NumericOnlyOperators = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"
+    };
+
+    public ReportQueryService(ApplicationDbContext context, ILogger<ReportQueryService> logger)
+    {
+        _context = context;
+        _logger = logger;
+    }
+
+    public async Task<List<PatientReportViewModel>> QueryPatientsAsync(QuerySpec spec)
+    {
+        var query = _context.Patients.AsNoTracking().Include(p => p.Facility);
+        var filtered = ApplyFilters(query, spec, "Patients");
+
+        return await filtered
+            .Select(p => new PatientReportViewModel
+            {
+                FirstName = p.FirstName,
+                LastName = p.LastName,
+                Gender = p.Gender,
+                DateOfBirth = p.DateOfBirth,
+                ContactNumber = p.ContactNumber,
+                Email = p.Email,
+                PhoneNumber = p.PhoneNumber
+            })
+            .OrderBy(p => p.LastName)
+            .ToListAsync();
+    }
+
+    public async Task<List<TransplantEventReportViewModel>> QueryTransplantEventsAsync(QuerySpec spec)
+    {
+        var query = _context.TransplantEvents.AsNoTracking()
+            .Include(e => e.Patient).ThenInclude(p => p.Facility)
+            .Include(e => e.Provider);
+        var filtered = ApplyFilters(query, spec, "TransplantEvents");
+
+        return await filtered
+            .Select(e => new TransplantEventReportViewModel
+            {
+                PatientName = e.Patient.FirstName + " " + e.Patient.LastName,
+                DateOfVisit = e.DateOfVisit,
+                DateOfPreviousVisit = e.DateOfPreviousVisit,
+                TransplantDate = e.TransplantDate,
+                InfusionDate = e.InfusionDate,
+                EventId = e.EventId,
+                TransplantNumber = e.TransplantNumber,
+                IsInpatient = e.IsInpatient ? "Yes" : "No"
+            })
+            .OrderBy(e => e.DateOfVisit)
+            .ToListAsync();
+    }
+
+    private IQueryable<T> ApplyFilters<T>(IQueryable<T> query, QuerySpec spec, string primaryTable) where T : class
+    {
+        if (spec.Filters.Count == 0)
+            return query;
+
+        var entityType = typeof(T);
+
+        foreach (var filter in spec.Filters)
+        {
+            if (!AllowedOperators.Contains(filter.Operator))
+            {
+                filter.Status = "skipped";
+                _logger.LogWarning("Skipping filter: disallowed operator '{Op}'", filter.Operator);
+                continue;
+            }
+
+            try
+            {
+                if (string.Equals(filter.Table, primaryTable, StringComparison.OrdinalIgnoreCase))
+                {
+                    var predicate = BuildPredicate<T>(entityType, filter.Field, filter.Operator, filter.Value);
+                    if (predicate != null)
+                    {
+                        query = query.Where(predicate);
+                        filter.Status = "applied";
+                    }
+                    else
+                    {
+                        filter.Status = "skipped";
+                        _logger.LogWarning("Could not build predicate for {Table}.{Field} {Op}",
+                            filter.Table, filter.Field, filter.Operator);
+                    }
+                }
+                else
+                {
+                    var navProp = ResolveNavProperty(primaryTable, filter.Table);
+                    if (navProp == null)
+                    {
+                        filter.Status = "skipped";
+                        _logger.LogWarning("No navigation from {Primary} to {Target}", primaryTable, filter.Table);
+                        continue;
+                    }
+
+                    var predicate = BuildNavPredicate<T>(entityType, navProp, filter.Field, filter.Operator, filter.Value);
+                    if (predicate != null)
+                    {
+                        query = query.Where(predicate);
+                        filter.Status = "applied";
+                    }
+                    else
+                    {
+                        filter.Status = "skipped";
+                        _logger.LogWarning("Could not build nav predicate for {Nav}.{Field} {Op}",
+                            navProp, filter.Field, filter.Operator);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                filter.Status = "skipped";
+                _logger.LogWarning(ex, "Failed to apply filter {Table}.{Field} {Op} {Value}",
+                    filter.Table, filter.Field, filter.Operator, LogSafe(filter.Field, filter.Value));
+            }
+        }
+
+        return query;
+    }
+
+    private static string? ResolveNavProperty(string primaryTable, string targetTable)
+    {
+        if (NavPropertyMap.TryGetValue(primaryTable, out var navs) &&
+            navs.TryGetValue(targetTable, out var navProp))
+            return navProp;
+        return null;
+    }
+
+    private static Expression<Func<T, bool>>? BuildPredicate<T>(
+        Type entityType, string fieldName, string op, string value)
+    {
+        var property = entityType.GetProperty(fieldName,
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (property == null) return null;
+
+        var param = Expression.Parameter(typeof(T), "x");
+        var member = Expression.Property(param, property);
+        return BuildComparison<T>(param, member, property.PropertyType, op, value);
+    }
+
+    private static Expression<Func<T, bool>>? BuildNavPredicate<T>(
+        Type entityType, string navPropertyName, string fieldName, string op, string value)
+    {
+        var navProp = entityType.GetProperty(navPropertyName,
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (navProp == null) return null;
+
+        var targetProp = navProp.PropertyType.GetProperty(fieldName,
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (targetProp == null) return null;
+
+        var param = Expression.Parameter(typeof(T), "x");
+        var navAccess = Expression.Property(param, navProp);
+        var member = Expression.Property(navAccess, targetProp);
+        return BuildComparison<T>(param, member, targetProp.PropertyType, op, value);
+    }
+
+    private static Expression<Func<T, bool>>? BuildComparison<T>(
+        ParameterExpression param, MemberExpression member, Type propertyType, string op, string value)
+    {
+        var underlying = Nullable.GetUnderlyingType(propertyType) ?? propertyType;
+
+        if (underlying == typeof(string))
+        {
+            // Reject numeric-only operators on string fields rather than
+            // silently falling through to equals.
+            if (NumericOnlyOperators.Contains(op))
+                return null;
+
+            // Null-safe: coalesce null strings to empty string before calling
+            // ToLower(), preventing NullReferenceException on nullable columns.
+            var emptyString = Expression.Constant(string.Empty);
+            var coalesced = Expression.Coalesce(member, emptyString);
+            var lowerMember = Expression.Call(coalesced, typeof(string).GetMethod("ToLower", Type.EmptyTypes)!);
+            var lowerValue = Expression.Constant(value.ToLower());
+
+            Expression body = op.ToLower() switch
+            {
+                "contains" => Expression.Call(lowerMember,
+                    typeof(string).GetMethod("Contains", new[] { typeof(string) })!, lowerValue),
+                "notequals" => Expression.NotEqual(lowerMember, lowerValue),
+                _ => Expression.Equal(lowerMember, lowerValue),
+            };
+            return Expression.Lambda<Func<T, bool>>(body, param);
+        }
+
+        if (underlying == typeof(bool))
+        {
+            var boolVal = value.Equals("true", StringComparison.OrdinalIgnoreCase)
+                          || value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+            var constant = Expression.Constant(boolVal, propertyType);
+            var body = op.Equals("notEquals", StringComparison.OrdinalIgnoreCase)
+                ? (Expression)Expression.NotEqual(member, constant)
+                : Expression.Equal(member, constant);
+            return Expression.Lambda<Func<T, bool>>(body, param);
+        }
+
+        object? parsedValue = null;
+        if (underlying == typeof(DateTime) && DateTime.TryParse(value, out var dt)) parsedValue = dt;
+        else if (underlying == typeof(int) && int.TryParse(value, out var i)) parsedValue = i;
+        else if (underlying == typeof(double) && double.TryParse(value, out var d)) parsedValue = d;
+
+        if (parsedValue == null) return null;
+
+        Expression left = member;
+        if (propertyType != underlying)
+            left = Expression.Convert(member, underlying);
+
+        var constant2 = Expression.Constant(parsedValue, underlying);
+
+        Expression comparison = op.ToLower() switch
+        {
+            "greaterthan" => Expression.GreaterThan(left, constant2),
+            "greaterthanorequal" => Expression.GreaterThanOrEqual(left, constant2),
+            "lessthan" => Expression.LessThan(left, constant2),
+            "lessthanorequal" => Expression.LessThanOrEqual(left, constant2),
+            "notequals" => Expression.NotEqual(left, constant2),
+            _ => Expression.Equal(left, constant2),
+        };
+
+        return Expression.Lambda<Func<T, bool>>(comparison, param);
+    }
+
+    private static string LogSafe(string field, string value)
+    {
+        var phiFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "FirstName", "LastName", "MRN", "ContactNumber", "Email", "PhoneNumber", "DateOfBirth"
+        };
+        return phiFields.Contains(field) ? "[FILTERED]" : value;
+    }
+}

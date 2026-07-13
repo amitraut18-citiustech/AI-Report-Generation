@@ -1,56 +1,118 @@
 {
-  "database": "HealthcareDB",
-  "generated": "2026-07-08T10:00:00Z",
+  "database": "PatientDB (EF Core + SQLite)",
+  "generated": "<fill-at-generation>",
+  "allowedOperators": [
+    "equals",
+    "notEquals",
+    "contains",
+    "greaterThan",
+    "greaterThanOrEqual",
+    "lessThan",
+    "lessThanOrEqual"
+  ],
   "tables": [
     {
-      "name": "Patients",
-      "description": "Active and inactive recipients of care",
+      "name": "Facilities",
+      "description": "Healthcare facilities and care sites where patients receive treatment and providers practice",
       "reportable": true,
       "columns": [
-        { "name": "Id", "type": "INT", "description": "Primary key", "phi": false },
-        { "name": "FirstName", "type": "NVARCHAR(100)", "description": "Patient first name", "phi": true },
-        { "name": "LastName", "type": "NVARCHAR(100)", "description": "Patient last name", "phi": true },
-        { "name": "DateOfBirth", "type": "DATE", "description": "Patient date of birth", "phi": true },
-        { "name": "Gender", "type": "NVARCHAR(20)", "description": "Patient gender", "phi": false },
-        { "name": "BloodType", "type": "NVARCHAR(10)", "description": "ABO/Rh blood type", "phi": false },
-        { "name": "MRN", "type": "NVARCHAR(20)", "description": "Medical Record Number — unique patient identifier", "phi": true },
-        { "name": "SSN", "type": "NVARCHAR(11)", "description": "Social Security Number", "phi": true },
-        { "name": "Address", "type": "NVARCHAR(200)", "description": "Street address", "phi": true },
-        { "name": "City", "type": "NVARCHAR(100)", "description": "City of residence", "phi": true },
-        { "name": "State", "type": "NVARCHAR(2)", "description": "State code", "phi": false },
-        { "name": "Status", "type": "NVARCHAR(20)", "description": "Active or Inactive", "phi": false },
-        { "name": "FacilityId", "type": "INT", "description": "Foreign key to Facilities", "phi": false },
-        { "name": "CreatedDate", "type": "DATETIME", "description": "Record creation timestamp", "phi": false }
+        { "name": "Id", "type": "int", "description": "Primary key", "phi": false },
+        { "name": "Name", "type": "string", "description": "Facility display name", "phi": false },
+        { "name": "City", "type": "string", "description": "Facility city", "phi": false },
+        { "name": "State", "type": "string", "description": "Two-letter state abbreviation", "phi": false },
+        { "name": "FacilityType", "type": "string", "description": "Type of facility (Hospital, Clinic)", "phi": false },
+        { "name": "IsActive", "type": "bool", "description": "Whether the facility is currently active", "phi": false }
+      ],
+      "relationships": []
+    },
+    {
+      "name": "Providers",
+      "description": "Healthcare providers (physicians, specialists) who perform transplant procedures",
+      "reportable": true,
+      "columns": [
+        { "name": "Id", "type": "int", "description": "Primary key", "phi": false },
+        { "name": "FirstName", "type": "string", "description": "Provider first name", "phi": true },
+        { "name": "LastName", "type": "string", "description": "Provider last name", "phi": true },
+        { "name": "Specialty", "type": "string", "description": "Medical specialty (e.g. Hematology, Oncology)", "phi": false },
+        { "name": "NPI", "type": "string", "description": "National Provider Identifier", "phi": true },
+        {
+          "name": "FacilityId", "type": "int", "description": "Foreign key to the facility where the provider practices", "phi": false,
+          "navigation": {
+            "table": "Facilities",
+            "foreignKey": "Id",
+            "navProperty": "Facility",
+            "displayFields": ["Name", "City", "State"]
+          }
+        }
       ],
       "relationships": [
         { "column": "FacilityId", "references": "Facilities.Id", "type": "many-to-one" }
       ]
     },
     {
-      "name": "Facilities",
-      "description": "Healthcare facilities / care sites",
+      "name": "Patients",
+      "description": "Active and inactive recipients of care, including demographics and contact information",
       "reportable": true,
       "columns": [
-        { "name": "Id", "type": "INT", "description": "Primary key", "phi": false },
-        { "name": "FacilityName", "type": "NVARCHAR(200)", "description": "Facility display name", "phi": false },
-        { "name": "City", "type": "NVARCHAR(100)", "description": "Facility city", "phi": false },
-        { "name": "State", "type": "NVARCHAR(2)", "description": "Facility state code", "phi": false },
-        { "name": "Status", "type": "NVARCHAR(20)", "description": "Active or Inactive", "phi": false }
+        { "name": "Id", "type": "int", "description": "Primary key", "phi": false },
+        { "name": "FirstName", "type": "string", "description": "Patient first name", "phi": true },
+        { "name": "LastName", "type": "string", "description": "Patient last name", "phi": true },
+        { "name": "Gender", "type": "string", "description": "Patient gender", "phi": false },
+        { "name": "DateOfBirth", "type": "DateTime", "description": "Patient date of birth", "phi": true },
+        { "name": "ContactNumber", "type": "string", "description": "Contact phone number", "phi": true },
+        { "name": "Email", "type": "string", "description": "Patient email address", "phi": true },
+        { "name": "PhoneNumber", "type": "string", "description": "Patient phone number", "phi": true },
+        { "name": "MRN", "type": "string", "description": "Medical Record Number — unique patient identifier", "phi": true },
+        { "name": "Status", "type": "string", "description": "Patient status: Active or Inactive", "phi": false },
+        { "name": "HeightCm", "type": "double", "description": "Patient height in centimeters", "phi": false },
+        { "name": "WeightKg", "type": "double", "description": "Patient weight in kilograms", "phi": false },
+        {
+          "name": "FacilityId", "type": "int", "description": "Foreign key to the patient's facility", "phi": false,
+          "navigation": {
+            "table": "Facilities",
+            "foreignKey": "Id",
+            "navProperty": "Facility",
+            "displayFields": ["Name", "City", "State"]
+          }
+        }
       ],
-      "relationships": []
+      "relationships": [
+        { "column": "FacilityId", "references": "Facilities.Id", "type": "many-to-one" }
+      ]
     },
     {
-      "name": "Encounters",
-      "description": "Patient visits and clinical encounters",
+      "name": "TransplantEvents",
+      "description": "Individual transplant procedures and visit events linked to patients and providers",
       "reportable": true,
       "columns": [
-        { "name": "Id", "type": "INT", "description": "Primary key", "phi": false },
-        { "name": "PatientId", "type": "INT", "description": "Foreign key to Patients", "phi": false },
-        { "name": "EncounterType", "type": "NVARCHAR(50)", "description": "Type of encounter (Inpatient, Outpatient, Emergency, etc.)", "phi": false },
-        { "name": "EncounterDate", "type": "DATE", "description": "Date of the encounter", "phi": false },
-        { "name": "ProviderId", "type": "INT", "description": "Foreign key to Providers", "phi": false },
-        { "name": "Status", "type": "NVARCHAR(20)", "description": "Encounter status (Completed, Scheduled, Cancelled)", "phi": false },
-        { "name": "Notes", "type": "NVARCHAR(MAX)", "description": "Clinical notes — free text", "phi": true }
+        { "name": "Id", "type": "int", "description": "Primary key", "phi": false },
+        {
+          "name": "PatientId", "type": "int", "description": "Foreign key to the patient who received the transplant", "phi": false,
+          "navigation": {
+            "table": "Patients",
+            "foreignKey": "Id",
+            "navProperty": "Patient",
+            "displayFields": ["FirstName", "LastName", "MRN", "Status"]
+          }
+        },
+        { "name": "DateOfVisit", "type": "DateTime", "description": "Date the transplant visit occurred", "phi": false },
+        { "name": "DateOfPreviousVisit", "type": "DateTime", "description": "Date of the patient's previous visit", "phi": false },
+        { "name": "TransplantDate", "type": "DateTime", "description": "Date the transplant was performed", "phi": false },
+        { "name": "InfusionDate", "type": "DateTime", "description": "Date the infusion was administered", "phi": false },
+        { "name": "EventId", "type": "string", "description": "Unique event identifier string", "phi": false },
+        { "name": "TransplantNumber", "type": "string", "description": "Transplant number identifier", "phi": false },
+        { "name": "IsInpatient", "type": "bool", "description": "Whether the event was an inpatient visit", "phi": false },
+        { "name": "DonorType", "type": "string", "description": "Donor type: Autologous or Allogeneic", "phi": false },
+        { "name": "DischargeDate", "type": "DateTime?", "description": "Date of patient discharge (nullable)", "phi": false },
+        {
+          "name": "ProviderId", "type": "int", "description": "Foreign key to the attending provider", "phi": false,
+          "navigation": {
+            "table": "Providers",
+            "foreignKey": "Id",
+            "navProperty": "Provider",
+            "displayFields": ["FirstName", "LastName", "Specialty"]
+          }
+        }
       ],
       "relationships": [
         { "column": "PatientId", "references": "Patients.Id", "type": "many-to-one" },
@@ -58,20 +120,81 @@
       ]
     },
     {
-      "name": "Providers",
-      "description": "Physicians and clinical staff who see patients",
+      "name": "Diagnoses",
+      "description": "Patient diagnoses with ICD codes, severity, and diagnosis dates",
       "reportable": true,
       "columns": [
-        { "name": "Id", "type": "INT", "description": "Primary key", "phi": false },
-        { "name": "FirstName", "type": "NVARCHAR(100)", "description": "Provider first name", "phi": false },
-        { "name": "LastName", "type": "NVARCHAR(100)", "description": "Provider last name", "phi": false },
-        { "name": "Specialty", "type": "NVARCHAR(100)", "description": "Medical specialty", "phi": false },
-        { "name": "FacilityId", "type": "INT", "description": "Foreign key to Facilities", "phi": false }
+        { "name": "Id", "type": "int", "description": "Primary key", "phi": false },
+        {
+          "name": "PatientId", "type": "int", "description": "Foreign key to the diagnosed patient", "phi": false,
+          "navigation": {
+            "table": "Patients",
+            "foreignKey": "Id",
+            "navProperty": "Patient",
+            "displayFields": ["FirstName", "LastName", "MRN", "Status"]
+          }
+        },
+        { "name": "IcdCode", "type": "string", "description": "ICD diagnosis code (e.g. C90.0)", "phi": false },
+        { "name": "Description", "type": "string", "description": "Diagnosis description text", "phi": false },
+        { "name": "Severity", "type": "string", "description": "Severity level: Mild, Moderate, or Severe", "phi": false },
+        { "name": "DiagnosedDate", "type": "DateTime", "description": "Date the diagnosis was recorded", "phi": false }
       ],
       "relationships": [
-        { "column": "FacilityId", "references": "Facilities.Id", "type": "many-to-one" }
+        { "column": "PatientId", "references": "Patients.Id", "type": "many-to-one" }
+      ]
+    },
+    {
+      "name": "Medications",
+      "description": "Patient medication prescriptions with dosage, frequency, and active status",
+      "reportable": true,
+      "columns": [
+        { "name": "Id", "type": "int", "description": "Primary key", "phi": false },
+        {
+          "name": "PatientId", "type": "int", "description": "Foreign key to the patient on this medication", "phi": false,
+          "navigation": {
+            "table": "Patients",
+            "foreignKey": "Id",
+            "navProperty": "Patient",
+            "displayFields": ["FirstName", "LastName", "MRN", "Status"]
+          }
+        },
+        { "name": "Name", "type": "string", "description": "Medication name", "phi": false },
+        { "name": "Dosage", "type": "string", "description": "Dosage amount (e.g. 500 mg)", "phi": false },
+        { "name": "Frequency", "type": "string", "description": "Dosing frequency (e.g. Twice daily)", "phi": false },
+        { "name": "StartDate", "type": "DateTime", "description": "Date the medication was started", "phi": false },
+        { "name": "EndDate", "type": "DateTime?", "description": "Date the medication was stopped (nullable if still active)", "phi": false },
+        { "name": "IsActive", "type": "bool", "description": "Whether the medication prescription is currently active", "phi": false }
+      ],
+      "relationships": [
+        { "column": "PatientId", "references": "Patients.Id", "type": "many-to-one" }
+      ]
+    },
+    {
+      "name": "LabResults",
+      "description": "Laboratory test results associated with transplant events, including reference ranges",
+      "reportable": true,
+      "columns": [
+        { "name": "Id", "type": "int", "description": "Primary key", "phi": false },
+        {
+          "name": "TransplantEventId", "type": "int", "description": "Foreign key to the transplant event this lab was ordered for", "phi": false,
+          "navigation": {
+            "table": "TransplantEvents",
+            "foreignKey": "Id",
+            "navProperty": "TransplantEvent",
+            "displayFields": ["EventId", "TransplantNumber", "DonorType"]
+          }
+        },
+        { "name": "TestName", "type": "string", "description": "Lab test name (e.g. Hemoglobin, WBC)", "phi": false },
+        { "name": "Value", "type": "double", "description": "Numeric lab result value", "phi": false },
+        { "name": "Unit", "type": "string", "description": "Unit of measurement (e.g. g/dL)", "phi": false },
+        { "name": "ReferenceLow", "type": "double", "description": "Lower bound of normal reference range", "phi": false },
+        { "name": "ReferenceHigh", "type": "double", "description": "Upper bound of normal reference range", "phi": false },
+        { "name": "TakenDate", "type": "DateTime", "description": "Date the lab sample was collected", "phi": false }
+      ],
+      "relationships": [
+        { "column": "TransplantEventId", "references": "TransplantEvents.Id", "type": "many-to-one" }
       ]
     }
   ],
-  "_notes": "Sample schema for PoC development. Replace with production schema mapping once Phase 1c runs against the real database."
+  "_notes": "All tables sourced from EF Core DbContext (DbSet declarations) and entity model classes. C# type names used because the .NET ReportQueryService resolves columns via reflection. Provider FirstName/LastName/NPI marked PHI: while NPI is publicly searchable, retaining real provider identifiers in anonymized data could enable re-identification of patients through provider association. Service dates (DateOfVisit, TransplantDate, etc.) left as non-PHI — they are essential for time-based report filtering and do not identify individuals once names/MRN/DOB are anonymized."
 }

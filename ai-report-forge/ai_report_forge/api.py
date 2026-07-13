@@ -47,8 +47,28 @@ class DecodeRequest(BaseModel):
     question: str = Field(..., min_length=1)
 
 
+class QueryFilter(BaseModel):
+    table: str
+    field: str
+    operator: str = "equals"
+    value: str
+
+
+class JoinSpec(BaseModel):
+    table: str
+    localKey: str
+    foreignKey: str = "Id"
+
+
+class QuerySpecModel(BaseModel):
+    entity: str = ""
+    joins: list[JoinSpec] = []
+    filters: list[QueryFilter] = []
+
+
 class DecodeResponse(BaseModel):
     report: str
+    query: QuerySpecModel = QuerySpecModel()
     parameters: dict
     template: str | None = None
     confidence: float = 0.0
@@ -62,10 +82,18 @@ class SummarizeRequest(BaseModel):
     table: str = Field(default="Patients", description="Primary table name for PHI anonymization lookup")
 
 
+class ChartSpec(BaseModel):
+    type: str = "bar"
+    title: str = ""
+    labels: list[str] = []
+    values: list[float | int] = []
+
+
 class SummarizeResponse(BaseModel):
     summary: str
     source: str
     anonymized: bool = False
+    chart: ChartSpec | None = None
 
 
 class HealthResponse(BaseModel):
@@ -88,12 +116,25 @@ def handle_decode_prompt(req: DecodeRequest):
 def handle_summarize(req: SummarizeRequest):
     ctx = _get_ctx()
 
-    result = summarize(req.question, req.results, req.row_count)
+    # Pass PHI markers so the Ollama summarizer anonymizes data before
+    # sending it to the model (same protection as the Claude fallback path).
+    result = summarize(
+        req.question, req.results, req.row_count,
+        phi_markers=ctx.phi, table=req.table,
+    )
 
     if result.get("summary"):
+        chart = None
+        if result.get("chart") and isinstance(result["chart"], dict):
+            try:
+                chart = ChartSpec(**result["chart"])
+            except Exception:
+                pass
         return SummarizeResponse(
             summary=result["summary"],
             source=result["source"],
+            anonymized=result.get("anonymized", False),
+            chart=chart,
         )
 
     log.info("Ollama summarization failed (%s), falling back to Claude", result.get("error"))
@@ -111,10 +152,17 @@ def handle_summarize(req: SummarizeRequest):
             detail="Both local and cloud LLM failed to produce a summary",
         )
 
+    fallback_chart = None
+    if fallback.get("chart") and isinstance(fallback["chart"], dict):
+        try:
+            fallback_chart = ChartSpec(**fallback["chart"])
+        except Exception:
+            pass
     return SummarizeResponse(
         summary=fallback["summary"],
         source=fallback["source"],
         anonymized=fallback.get("anonymized", False),
+        chart=fallback_chart,
     )
 
 

@@ -76,9 +76,26 @@ class AppContext:
         for t in self.schema.tables:
             if not t.get("reportable", True):
                 continue
-            cols = ", ".join(c["name"] for c in t.get("columns", []))
-            parts.append(f"- {t['name']}: {t.get('description', '')} — columns: {cols}")
-        return "\n".join(parts)
+            col_details = []
+            nav_details = []
+            for c in t.get("columns", []):
+                col_details.append(f"  - {c['name']} ({c.get('type', '?')}): {c.get('description', '')}")
+                nav = c.get("navigation")
+                if nav:
+                    display = ", ".join(nav.get("displayFields", []))
+                    nav_details.append(
+                        f"  - {c['name']} → joins {nav['table']} "
+                        f"(nav: {nav.get('navProperty', '?')}, display fields: {display})"
+                    )
+            section = (
+                f"### {t['name']}\n"
+                f"{t.get('description', '')}\n"
+                f"Filterable fields:\n" + "\n".join(col_details)
+            )
+            if nav_details:
+                section += "\nRelationships (use these for cross-table filters):\n" + "\n".join(nav_details)
+            parts.append(section)
+        return "\n\n".join(parts)
 
 
 _KEY_RE = re.compile(r"\*\*Report key:\*\*\s*(\S+)")

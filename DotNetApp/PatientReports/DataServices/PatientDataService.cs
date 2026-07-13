@@ -7,10 +7,12 @@ namespace PatientReports.DataServices;
 public class PatientDataService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ILogger<PatientDataService> _logger;
 
-    public PatientDataService(ApplicationDbContext context)
+    public PatientDataService(ApplicationDbContext context, ILogger<PatientDataService> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     public async Task<List<PatientReportViewModel>> GetPatientReportAsync()
