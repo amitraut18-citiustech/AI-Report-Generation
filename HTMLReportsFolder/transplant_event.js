@@ -110,6 +110,7 @@
           "<td>" + esc(r.eventId) + "</td>" +
           "<td>" + esc(r.transplantNumber) + "</td>" +
           "<td>" + esc(total) + "</td>" +
+          "<td>" + esc(r.donorType) + "</td>" +
           "<td>" + esc(r.isInpatient) + "</td>" +
         "</tr>"
       );

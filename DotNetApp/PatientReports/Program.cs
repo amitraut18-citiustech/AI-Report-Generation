@@ -10,6 +10,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+// Used to sign/encrypt the QuerySpec passed through the browser so clients
+// cannot craft arbitrary filters against the database.
+builder.Services.AddDataProtection();
 builder.Services.AddScoped<PatientReports.DataServices.PdfReportService>();
 var dbPath = Path.Combine(builder.Environment.ContentRootPath, "db", "PatientDB.db");
 Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);

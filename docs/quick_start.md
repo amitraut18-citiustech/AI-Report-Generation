@@ -92,7 +92,7 @@ Open http://localhost:5282/Reports/HtmlReports
 ```bash
 cd ai-report-forge
 python -m pytest tests/ -v
-# Expected: 35 passed
+# Expected: 44 passed
 ```
 
 ## More detail

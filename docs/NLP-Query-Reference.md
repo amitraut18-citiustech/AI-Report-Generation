@@ -157,13 +157,17 @@ Multiple filters in one query are combined with **AND**. OR logic is not support
 
 ## Clinical Summary Queries
 
-The clinical summary report routes differently from the other two. The brain identifies the report, but the actual data is served by `GetClinicalFlatRowsAsync` with hardcoded default parameters (date range 2026-01-01 to 2026-12-31, age 0-120, status "All"). NLP-decoded filters for age or date are not dynamically applied to this report's data service — the clinical report always returns all data within the default parameters.
+The clinical report is built from denormalized flat rows, so brain-decoded filters are applied **in memory** (`ReportQueryService.FilterClinicalRows`) on top of the default parameters (date range 2026-01-01 to 2026-12-31, age 0-120, status "All"). Supported filter targets: gender, status, patient/provider name, facility name/city/state, donor type, inpatient flag, visit dates, lab test name/value.
 
-| Query | Routes To | Notes |
+| Query | Filters Applied | Result |
 |---|---|---|
-| Show clinical summary | clinical | All data, default date/age range |
-| Show clinical summary for patients over 60 | clinical | Routes correctly; age filter in brain response but not applied to data query |
-| Show patient clinical summary report | clinical | Full report |
+| Show clinical summary | none | All rows within default date/age range |
+| show clinical details of female patients from Austin General Hospital | Gender = "Female" AND Facilities.Name = "Austin General Hospital" | Only Ava Patel's rows |
+| clinical summary for patients in Dallas | Facilities.City = "Dallas" | Dallas Transplant Clinic rows only |
+| clinical report for male patients | Gender = "Male" | Male patients' rows only |
+| clinical summary of allogeneic transplants | DonorType = "Allogeneic" | Allogeneic event rows only |
+
+Note: `FirstName`/`LastName` filters match as substrings of the combined `PatientName`/`ProviderName` columns. Age filters work only if the model decodes them as a `DateOfBirth` range.
 
 ---
 
@@ -231,11 +235,23 @@ These queries are correctly rejected with `report = "UNKNOWN"`:
 
 ---
 
+## Robustness Guardrails
+
+Because the local 3B model occasionally decodes filters incorrectly, the brain applies deterministic corrections after parsing (`prompt_decoder._sanitize_filters`):
+
+1. **Gender inversion fix** — "women"/"men" sometimes decodes as `Gender notEquals ...`. If the question contains no exclusion word (exclude, except, not, non, without), `notEquals` on Gender is flipped to `equals`.
+2. **City-in-Name fix** — a single-word `Facilities.Name` value with no facility keyword (hospital, clinic, center, medical) is moved to `Facilities.City` (e.g. "patients in Dallas").
+
+The decoder prompt also includes explicit gender-synonym, location, and date-direction ("after" = greaterThan, "before" = lessThan) rules. An end-to-end battery of 24 NLP questions passes 23/24; the one deviation is a SQL-injection-style string being safely rejected as UNKNOWN.
+
+---
+
 ## Current Limitations
 
 1. **No OR logic** — all filters are AND'd. "Show patients from Austin or Houston" will not work correctly.
 2. **No startsWith / endsWith** — only full substring match (`contains`) is available.
-3. **Clinical summary filters** — age and date filters decoded by the brain are not dynamically applied; the report uses hardcoded default parameters.
+3. **No aggregations** — questions like "average age by facility" or "top 5 by lab value" are not supported.
 4. **Facility filter on transplant events** — the LLM sometimes misroutes facility filters through `Providers.FacilityId` instead of the correct 2-hop path `TransplantEvents → Patient → Facility`. This can cause the facility filter to be silently dropped.
 5. **Model non-determinism** — the `qwen2.5:3b` model may occasionally produce slightly different filter structures for the same query. Results listed above are the most common outcomes.
 6. **Narrative accuracy** — the AI summary may contain minor factual errors (e.g., wrong gender counts) due to the small model's limited reasoning capacity.
+7. **Filterable fields are allowlisted** — filters on PHI contact fields (Email, PhoneNumber, MRN, NPI) are deliberately blocked and will be skipped.

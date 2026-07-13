@@ -1,5 +1,5 @@
-using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using PatientReports.DataServices;
 using PatientReports.Models;
@@ -16,6 +16,7 @@ public class ReportsController : Controller
     private readonly IWebHostEnvironment _env;
     private readonly IConfiguration _config;
     private readonly ILogger<ReportsController> _logger;
+    private readonly IDataProtector _specProtector;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -23,8 +24,9 @@ public class ReportsController : Controller
         PropertyNameCaseInsensitive = true
     };
 
-    public ReportsController(PatientDataService dataService, PdfReportService pdfService, RdlRenderClient rdlRenderClient, ReportBrainClient brainClient, ReportQueryService queryService, IWebHostEnvironment env, IConfiguration config, ILogger<ReportsController> logger)
+    public ReportsController(PatientDataService dataService, PdfReportService pdfService, RdlRenderClient rdlRenderClient, ReportBrainClient brainClient, ReportQueryService queryService, IWebHostEnvironment env, IConfiguration config, ILogger<ReportsController> logger, IDataProtectionProvider dataProtection)
     {
+        _specProtector = dataProtection.CreateProtector("ReportForge.QuerySpec");
         _dataService = dataService;
         _pdfService = pdfService;
         _rdlRenderClient = rdlRenderClient;
@@ -62,29 +64,31 @@ public class ReportsController : Controller
     }
 
     /// <summary>
-    /// Encode a QuerySpec to a URL-safe Base64 string for query-string transport.
+    /// Encode a QuerySpec to a tamper-proof, URL-safe string for query-string
+    /// transport. The payload is signed+encrypted via Data Protection so
+    /// clients cannot craft arbitrary filters against the database.
     /// </summary>
     private string EncodeQuerySpec(QuerySpec spec)
     {
         var json = JsonSerializer.Serialize(spec, JsonOpts);
-        return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
+        return _specProtector.Protect(json);
     }
 
     /// <summary>
-    /// Decode a Base64-encoded QuerySpec from a query-string parameter.
-    /// Returns null if the input is missing, empty, or malformed.
+    /// Decode a protected QuerySpec from a query-string parameter.
+    /// Returns null if the input is missing, tampered with, or malformed.
     /// </summary>
-    private QuerySpec? DecodeQuerySpec(string? specB64)
+    private QuerySpec? DecodeQuerySpec(string? spec)
     {
-        if (string.IsNullOrWhiteSpace(specB64)) return null;
+        if (string.IsNullOrWhiteSpace(spec)) return null;
         try
         {
-            var json = Encoding.UTF8.GetString(Convert.FromBase64String(specB64));
+            var json = _specProtector.Unprotect(spec);
             return JsonSerializer.Deserialize<QuerySpec>(json, JsonOpts);
         }
         catch
         {
-            _logger.LogWarning("Failed to decode spec query parameter");
+            _logger.LogWarning("Failed to decode spec query parameter (invalid or tampered)");
             return null;
         }
     }
@@ -183,7 +187,8 @@ public class ReportsController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Brain service call failed for question: {Question}", question);
+            // Do not log the question text — it can contain PHI (patient names).
+            _logger.LogError(ex, "Brain service call failed");
             return RedirectToAction(nameof(HtmlReports), new
             {
                 brainError = "AI brain service is unavailable. Please select a report from the dropdown.",
@@ -240,7 +245,13 @@ public class ReportsController : Controller
                 var to = DateTime.TryParse(toDate, out var t) ? t : new DateTime(2026, 12, 31);
                 var minA = int.TryParse(minAge, out var mn) ? mn : 0;
                 var maxA = int.TryParse(maxAge, out var mx) ? mx : 120;
-                rows = await _dataService.GetClinicalFlatRowsAsync(from, to, minA, maxA, "All");
+                var clinicalRows = await _dataService.GetClinicalFlatRowsAsync(from, to, minA, maxA, "All");
+                // Apply brain-decoded filters (e.g. gender, facility) — this
+                // report is built from denormalized rows, so filtering happens
+                // in memory rather than through QueryPatients/TransplantEvents.
+                if (hasBrainQuery)
+                    clinicalRows = _queryService.FilterClinicalRows(clinicalRows, querySpec!);
+                rows = clinicalRows;
                 parameters = new
                 {
                     fromDate = from.ToString("yyyy-MM-dd"),
@@ -294,7 +305,7 @@ public class ReportsController : Controller
         html = html.Replace("<!-- REPORT_DATA -->", $"<script>window.REPORT_DATA = {json};</script>");
         html = html.Replace($"<script src=\"{key}.js\" defer></script>", $"<script>{js}</script>");
 
-        html = html.Replace("</body>", @"<script src=""https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js""></script>
+        html = html.Replace("</body>", @"<script src=""/lib/chartjs/chart.umd.min.js""></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var d = window.REPORT_DATA;

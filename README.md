@@ -24,6 +24,13 @@ See [docs/quick_start.md](docs/quick_start.md) for setup and run instructions.
 | [Runbook](docs/runbook-ai-report-forge-poc.md) | Full PoC runbook with architecture diagrams, demo scenarios, and troubleshooting |
 | [NLP Query Reference](docs/NLP-Query-Reference.md) | Complete list of supported natural language queries with expected results |
 
+## Safety & Robustness
+
+- **PHI never leaves the server in the clear** — rows and the question itself are anonymized (pseudonyms / redaction / age ranges) before any LLM call; real names are re-mapped locally afterwards. The brain refuses to start without its PHI markers.
+- **Filters can't be forged** — the query spec travels as a signed+encrypted parameter, and only allowlisted columns per table are filterable (PHI contact fields are blocked).
+- **Small-model guardrails** — deterministic post-decode corrections fix known LLM mistakes (inverted gender filters, city-vs-facility confusion); off-topic or destructive questions fail closed.
+- **Honest failures** — if both LLMs fail, the API returns an error instead of a fabricated summary; LLM chart output is validated before rendering.
+
 ## How It Works
 
 1. **Phase 1 (Build-time):** Claude Code analyzes legacy `.rdl` reports, produces reviewable thought files, and generates static HTML+JS report templates and database schema mappings.

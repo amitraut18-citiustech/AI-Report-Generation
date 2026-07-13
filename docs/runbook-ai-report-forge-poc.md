@@ -1,6 +1,6 @@
 # Runbook: AI Report Forge -- Full PoC / Demo
 
-**Updated:** 2026-07-13
+**Updated:** 2026-07-14
 
 ---
 
@@ -61,13 +61,13 @@ AI-Report-Generation/
 |-- ai-report-forge/                # Phase 2: Python brain service (FastAPI)
 |   |-- ai_report_forge/
 |   |   |-- api.py                  # FastAPI endpoints
-|   |   |-- prompt_decoder.py       # NL question -> report key + QuerySpec
+|   |   |-- prompt_decoder.py       # NL question -> report key + QuerySpec (+ deterministic guardrails)
 |   |   |-- summarizer.py           # Data -> narrative summary (Ollama, with PHI anonymization)
-|   |   |-- claude_fallback.py      # Claude API fallback (anonymized data only)
-|   |   |-- anonymizer.py           # PHI anonymizer (pseudonymize, age_range, redact, etc.)
-|   |   |-- context_loader.py       # Loads thought files + schema + PHI markers at startup
+|   |   |-- claude_fallback.py      # Claude API fallback (anonymized data + scrubbed question only)
+|   |   |-- anonymizer.py           # PHI anonymizer (case-insensitive, deny-by-default safety net)
+|   |   |-- context_loader.py       # Loads artifacts at startup; refuses to boot without PHI markers
 |   |   +-- config.py               # Settings (Ollama URL, model, paths, Claude API key)
-|   |-- tests/                      # 35 unit tests
+|   |-- tests/                      # 44 unit tests
 |   |-- requirements.txt
 |   +-- .env.example
 |
@@ -286,7 +286,7 @@ Each can be selected from the dropdown without a brain query, or reached via nat
 | .NET -> SQLite (data) | Connected | EF Core, auto-seeded on startup |
 | .NET -> HTMLReportsFolder (templates) | Connected | `ReportsController.HtmlReport()` reads and populates templates |
 | .NET -> PDF generation | Connected | PDFsharp/MigraDoc, download button works |
-| .NET -> Python brain (decode-prompt) | Connected | `ReportBrainClient` calls `/decode-prompt`, results flow through as Base64-encoded QuerySpec |
+| .NET -> Python brain (decode-prompt) | Connected | `ReportBrainClient` calls `/decode-prompt`; the QuerySpec travels as a signed+encrypted (ASP.NET Data Protection) query parameter, so clients cannot forge filters |
 | .NET -> Python brain (summarize) | Connected | Narrative + chart injected into HTML report via `window.REPORT_DATA` |
 | Python brain -> Ollama (LLM) | Connected | Prompt decoding + summarization with PHI anonymization + timeout |
 | Python brain -> Claude (fallback) | Connected | Requires `ANTHROPIC_API_KEY` in `.env` |
@@ -302,7 +302,7 @@ Each can be selected from the dropdown without a brain query, or reached via nat
 ```bash
 cd ai-report-forge
 python -m pytest tests/ -v
-# Expected: 35 passed
+# Expected: 44 passed
 ```
 
 ### .NET app
@@ -352,7 +352,29 @@ The .NET HttpClient has a 90s timeout for brain calls. Ollama client has a 60s t
 If the report shows all rows despite a filter question, check:
 1. The redirect URL in the browser address bar -- does it have a `spec=` parameter?
 2. If `spec` is missing, the brain call failed or returned no filters. Check the brain service terminal for errors.
-3. If `spec` is present but data is unfiltered, the filter may have been skipped. Check the .NET terminal for `Skipping filter` warnings.
+3. If `spec` is present but data is unfiltered, the filter may have been skipped (disallowed operator, field not on the allowlist, or no navigation path). Check the .NET terminal for `Skipping filter` / `Clinical filter skipped` warnings.
+
+All three reports honor brain-decoded filters, including the clinical summary (filtered in memory via `FilterClinicalRows`).
+
+---
+
+## Security Hardening (implemented)
+
+| Control | Where | What it does |
+|---|---|---|
+| Signed QuerySpec | .NET (Data Protection) | The `spec` query parameter is signed+encrypted; clients cannot craft or tamper with filters |
+| Filter field allowlist | .NET `ReportQueryService` | Only whitelisted columns per table are filterable; probing PHI columns (Email, MRN, phone) is blocked |
+| Case-insensitive PHI matching | Python `anonymizer.py` | Anonymization works on the camelCase keys the .NET client actually sends |
+| Deny-by-default PHI net | Python `anonymizer.py` | Identifier-like columns without an explicit marker are anonymized anyway |
+| Question scrubbing | Python | PHI values in the user's question are replaced with pseudonyms before any LLM call |
+| Fail-hard startup | Python `context_loader.py` | Brain refuses to boot if schema-mapping or phi-markers are missing/empty |
+| Honest failure | Python `claude_fallback.py` | Both-LLMs-failed returns HTTP 502 instead of a fake "summary" |
+| Chart spec validation | Python `api.py` | LLM chart output validated (type, label/value parity, finite numbers) before reaching the UI |
+| Prompt injection hardening | Python prompts | Question/data marked as untrusted content in both LLM prompts |
+| Local Chart.js | .NET `wwwroot/lib/chartjs` | No CDN dependency in PHI report pages |
+| No question in app logs | .NET controller | Question text (potential PHI) removed from error logs |
+
+**Known remaining gaps (deliberate for a PoC):** no user authentication or audit logging; the question travels as a URL query parameter (visible in raw HTTP logs); LLM confidence is self-reported.
 
 ---
 
@@ -370,8 +392,9 @@ graph TB
         HTML["/Reports/HtmlReport<br/>(Populated HTML Report)"]
         DL["/Reports/Download<br/>(PDF Export)"]
         RBC["ReportBrainClient"]
-        RQS["ReportQueryService<br/>(Expression Tree Filters)"]
+        RQS["ReportQueryService<br/>(Expression Tree Filters +<br/>Field Allowlist +<br/>Clinical In-Memory Filters)"]
         PDS["PatientDataService"]
+        DP["Data Protection<br/>(Signed QuerySpec)"]
     end
 
     subgraph DB["SQLite"]
@@ -380,9 +403,10 @@ graph TB
 
     subgraph BRAIN["Python Brain Service :8080"]
         DEC["/decode-prompt<br/>(NL → Report + Filters)"]
+        SAN["Filter Guardrails<br/>(gender/city sanitizer)"]
         SUM["/summarize<br/>(Data → Narrative + Chart)"]
-        ANON["Anonymizer<br/>(PHI Stripping)"]
-        CTX["Context Loader<br/>(Thoughts + Schema + PHI)"]
+        ANON["Anonymizer<br/>(PHI Stripping +<br/>Question Scrubbing)"]
+        CTX["Context Loader<br/>(Thoughts + Schema + PHI,<br/>fail-hard if missing)"]
     end
 
     subgraph ARTIFACTS["Phase 1 Artifacts"]
@@ -394,7 +418,7 @@ graph TB
 
     subgraph LLM["LLM Layer"]
         OLL["Ollama :11434<br/>qwen2.5:3b"]
-        CL["Claude API<br/>(Fallback Only)"]
+        CL["Claude API claude-opus-4-8<br/>(Anonymized Fallback Only)"]
     end
 
     U -->|"Types question"| HUB
@@ -403,8 +427,10 @@ graph TB
     RBC -->|"/decode-prompt"| DEC
     DEC -->|"Schema-aware prompt"| OLL
     OLL -->|"JSON: report + filters"| DEC
-    DEC -->|"DecodeResponse"| RBC
-    RBC -->|"Redirect with spec"| HUB
+    DEC -->|"Sanitize filters"| SAN
+    SAN -->|"DecodeResponse"| RBC
+    RBC -->|"Redirect with signed spec"| HUB
+    ASK -->|"Protect QuerySpec"| DP
     HUB -->|"iframe src"| HTML
     HTML -->|"QuerySpec"| RQS
     RQS -->|"EF Core IQueryable"| SQLITE
@@ -456,22 +482,23 @@ sequenceDiagram
         Brain->>Ollama: Chat completion (temp=0.1)
         Ollama-->>Brain: JSON response
         Brain->>Brain: Parse JSON, validate filters,<br/>strip placeholders, coerce types
+        Brain->>Brain: Guardrails: fix inverted gender,<br/>bare city in Facilities.Name
         Brain-->>Ask: DecodeResponse<br/>{report, query, confidence}
     end
 
     Ask->>Ask: Check confidence >= 0.3<br/>Map report key → route value
-    Ask->>Ask: Encode QuerySpec as Base64
+    Ask->>Ask: Sign + encrypt QuerySpec<br/>(Data Protection)
 
-    Ask-->>Hub: 302 Redirect<br/>/HtmlReports?report=patient<br/>&question=...&spec=B64
+    Ask-->>Hub: 302 Redirect<br/>/HtmlReports?report=patient<br/>&question=...&spec=signed
 
     Hub->>Hub: Show filter badges<br/>from decoded spec
-    Hub->>Tmpl: iframe → /HtmlReport?report=patient&spec=B64
+    Hub->>Tmpl: iframe → /HtmlReport?report=patient&spec=signed
 
     rect rgb(220, 240, 255)
         Note over Tmpl,DB: Step 2: Data Query
-        Tmpl->>Tmpl: Decode Base64 → QuerySpec
+        Tmpl->>Tmpl: Unprotect spec → QuerySpec<br/>(tampered spec → rejected)
         Tmpl->>QS: QueryPatientsAsync(spec)
-        QS->>QS: ApplyFilters: iterate filters,<br/>build expression trees,<br/>resolve nav properties<br/>(1-hop and 2-hop)
+        QS->>QS: ApplyFilters: check field allowlist,<br/>build expression trees,<br/>resolve nav properties<br/>(1-hop and 2-hop);<br/>clinical: in-memory FilterClinicalRows
         QS->>DB: EF Core IQueryable<br/>WHERE Facility.Name = 'Austin General Hospital'
         DB-->>QS: 3 matching rows
         QS-->>Tmpl: List<PatientReportViewModel>
@@ -480,25 +507,26 @@ sequenceDiagram
     rect rgb(255, 235, 238)
         Note over Tmpl,Claude: Step 3: AI Summarization
         Tmpl->>Brain: POST /summarize<br/>{question, results, row_count, table}
-        Brain->>Brain: Anonymize PHI columns<br/>(FirstName→Patient_001, etc.)
+        Brain->>Brain: Anonymize PHI columns<br/>(FirstName→Patient_001, etc.,<br/>case-insensitive + safety net)
+        Brain->>Brain: Scrub PHI values<br/>out of the question text
         Brain->>Ollama: Chat completion (temp=0.3)
         alt Ollama succeeds
             Ollama-->>Brain: JSON {summary, chart}
-            Brain->>Brain: Remap pseudonyms<br/>back to real names
+            Brain->>Brain: Validate chart spec,<br/>remap pseudonyms<br/>back to real names
         else Ollama fails
-            Brain->>Brain: Anonymize for Claude
+            Brain->>Brain: Anonymize + scrub for Claude
             Brain->>Claude: POST /messages (anonymized data)
             Claude-->>Brain: Summary with pseudonyms
             Brain->>Brain: Remap pseudonyms
         end
-        Brain-->>Tmpl: SummarizeResponse<br/>{summary, chart, source}
+        Brain-->>Tmpl: SummarizeResponse<br/>{summary, chart, source}<br/>(both LLMs failed → HTTP 502)
     end
 
     rect rgb(232, 245, 233)
         Note over Tmpl,User: Step 4: Render
         Tmpl->>Tmpl: Read patient.html + patient.js
         Tmpl->>Tmpl: Inject window.REPORT_DATA<br/>{rows, narrative, chart, meta}
-        Tmpl->>Tmpl: Inject Chart.js CDN + init script
+        Tmpl->>Tmpl: Inject local Chart.js<br/>(/lib/chartjs) + init script
         Tmpl-->>Hub: Complete HTML page
         Hub-->>User: Rendered report with<br/>AI Summary card + chart + data table
     end
@@ -518,7 +546,11 @@ flowchart TD
     CHECK_OP -->|No| SKIP1[Status = skipped<br/>Log warning]
     SKIP1 --> LOOP
 
-    CHECK_OP -->|Yes| SAME_TABLE{filter.Table ==<br/>primaryTable?}
+    CHECK_OP -->|Yes| CHECK_FIELD{Field on<br/>per-table<br/>allowlist?}
+    CHECK_FIELD -->|"No (e.g. Email, MRN,<br/>ContactNumber)"| SKIP0[Status = skipped<br/>PHI probe blocked]
+    SKIP0 --> LOOP
+
+    CHECK_FIELD -->|Yes| SAME_TABLE{filter.Table ==<br/>primaryTable?}
 
     SAME_TABLE -->|Yes| BUILD_DIRECT[BuildPredicate<br/>Direct property access]
     BUILD_DIRECT --> APPLY
@@ -544,8 +576,11 @@ flowchart TD
 
     LOOP -->|No| DONE([Return filtered IQueryable])
 
+    DONE -.->|"Clinical report only"| CLIN["FilterClinicalRows:<br/>map Table.Field → flat-row property,<br/>apply predicates in memory"]
+
     style START fill:#1f3864,color:#fff
     style DONE fill:#34a853,color:#fff
+    style SKIP0 fill:#fce8e6,stroke:#ea4335
     style SKIP1 fill:#fce8e6,stroke:#ea4335
     style SKIP2 fill:#fce8e6,stroke:#ea4335
     style SKIP3 fill:#fce8e6,stroke:#ea4335
@@ -562,15 +597,18 @@ Shows how patient data is protected before reaching any LLM.
 flowchart LR
     subgraph Input
         DATA["Query Results<br/>(real names, MRNs, DOBs)"]
+        Q["User Question<br/>(may contain names)"]
     end
 
     subgraph Anonymizer
-        LOAD["Load phi-markers.json<br/>(13 PHI columns)"]
+        LOAD["Load phi-markers.json<br/>(13 PHI columns,<br/>case-insensitive match)"]
+        NET["Safety net: unconfigured<br/>identifier-like columns<br/>(name/email/phone/mrn/dob)<br/>anonymized anyway"]
         STRAT{Strategy?}
         PS["pseudonymize<br/>Ava Patel → Patient_001"]
         AR["age_range<br/>1988-04-12 → 35-40"]
         RD["redact<br/>555-0101 → [REDACTED]"]
         MAP["Build reverse mapping<br/>Patient_001 → Ava Patel"]
+        SCRUB["scrub_text(question)<br/>known PHI values →<br/>pseudonyms"]
     end
 
     subgraph LLM_Call["LLM Call"]
@@ -584,13 +622,17 @@ flowchart LR
     end
 
     DATA --> LOAD
-    LOAD --> STRAT
+    LOAD --> NET
+    NET --> STRAT
     STRAT -->|"FirstName, LastName,<br/>MRN, NPI"| PS
     STRAT -->|"DateOfBirth"| AR
     STRAT -->|"Phone, Email,<br/>ContactNumber"| RD
     PS --> MAP
     AR --> MAP
     RD --> MAP
+    Q --> SCRUB
+    MAP -.->|"Known values"| SCRUB
+    SCRUB --> OL
     MAP --> OL
     OL --> RESP
     RESP --> RE

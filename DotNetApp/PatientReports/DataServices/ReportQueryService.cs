@@ -38,6 +38,117 @@ public class ReportQueryService
         ["Medications"] = new() { ["Facilities"] = new[] { "Patient", "Facility" } },
     };
 
+    // Per-table allowlist of fields a brain-generated (or user-supplied) spec
+    // may filter on. Reflection-based predicate building would otherwise allow
+    // probing any entity property — including PHI contact fields — via
+    // contains/range filters. Keys and values are case-insensitive.
+    private static readonly Dictionary<string, HashSet<string>> FilterableFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Patients"] = new(StringComparer.OrdinalIgnoreCase)
+            { "FirstName", "LastName", "Gender", "DateOfBirth", "Status", "HeightCm", "WeightKg" },
+        ["Facilities"] = new(StringComparer.OrdinalIgnoreCase)
+            { "Name", "City", "State", "FacilityType", "IsActive" },
+        ["TransplantEvents"] = new(StringComparer.OrdinalIgnoreCase)
+            { "DateOfVisit", "DateOfPreviousVisit", "TransplantDate", "InfusionDate",
+              "DischargeDate", "EventId", "TransplantNumber", "IsInpatient", "DonorType" },
+        ["Providers"] = new(StringComparer.OrdinalIgnoreCase)
+            { "FirstName", "LastName", "Specialty" },
+        ["Diagnoses"] = new(StringComparer.OrdinalIgnoreCase)
+            { "IcdCode", "Description", "Severity", "DiagnosedDate" },
+        ["Medications"] = new(StringComparer.OrdinalIgnoreCase)
+            { "Name", "Dosage", "Frequency", "StartDate", "EndDate", "IsActive" },
+        ["LabResults"] = new(StringComparer.OrdinalIgnoreCase)
+            { "TestName", "Value", "Unit", "TakenDate" },
+    };
+
+    private static bool IsFilterableField(string table, string field)
+    {
+        return FilterableFields.TryGetValue(table, out var fields) && fields.Contains(field);
+    }
+
+    // The clinical summary report is built from denormalized ClinicalFlatRow
+    // objects, so brain filters (table-qualified) are applied in memory by
+    // mapping each Table.Field onto the corresponding flat-row property.
+    // This map is also the allowlist for the clinical report.
+    private static readonly Dictionary<string, string> ClinicalFieldMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Patients.Gender"] = nameof(ClinicalFlatRow.Gender),
+        ["Patients.Status"] = nameof(ClinicalFlatRow.Status),
+        ["Patients.DateOfBirth"] = nameof(ClinicalFlatRow.DateOfBirth),
+        ["Patients.FirstName"] = nameof(ClinicalFlatRow.PatientName),
+        ["Patients.LastName"] = nameof(ClinicalFlatRow.PatientName),
+        ["Facilities.Name"] = nameof(ClinicalFlatRow.FacilityName),
+        ["Facilities.City"] = nameof(ClinicalFlatRow.FacilityCity),
+        ["Facilities.State"] = nameof(ClinicalFlatRow.FacilityState),
+        ["TransplantEvents.DateOfVisit"] = nameof(ClinicalFlatRow.DateOfVisit),
+        ["TransplantEvents.DateOfPreviousVisit"] = nameof(ClinicalFlatRow.DateOfPreviousVisit),
+        ["TransplantEvents.DonorType"] = nameof(ClinicalFlatRow.DonorType),
+        ["TransplantEvents.IsInpatient"] = nameof(ClinicalFlatRow.IsInpatient),
+        ["TransplantEvents.EventId"] = nameof(ClinicalFlatRow.EventId),
+        ["Providers.FirstName"] = nameof(ClinicalFlatRow.ProviderName),
+        ["Providers.LastName"] = nameof(ClinicalFlatRow.ProviderName),
+        ["Providers.Specialty"] = nameof(ClinicalFlatRow.Specialty),
+        ["LabResults.TestName"] = nameof(ClinicalFlatRow.LabTestName),
+        ["LabResults.Value"] = nameof(ClinicalFlatRow.LabValue),
+    };
+
+    // Combined-name columns: a FirstName/LastName equals-filter must match as
+    // a substring of "First Last" rather than the whole string.
+    private static readonly HashSet<string> CombinedNameProps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        nameof(ClinicalFlatRow.PatientName), nameof(ClinicalFlatRow.ProviderName)
+    };
+
+    /// <summary>
+    /// Applies brain-decoded filters to the denormalized clinical rows in memory.
+    /// Unknown or unsupported filters are marked skipped and ignored (AND-only).
+    /// </summary>
+    public List<ClinicalFlatRow> FilterClinicalRows(List<ClinicalFlatRow> rows, QuerySpec spec)
+    {
+        if (spec.Filters.Count == 0)
+            return rows;
+
+        IEnumerable<ClinicalFlatRow> result = rows;
+
+        foreach (var filter in spec.Filters)
+        {
+            if (!AllowedOperators.Contains(filter.Operator))
+            {
+                filter.Status = "skipped";
+                _logger.LogWarning("Clinical filter skipped: disallowed operator '{Op}'", filter.Operator);
+                continue;
+            }
+
+            if (!ClinicalFieldMap.TryGetValue($"{filter.Table}.{filter.Field}", out var prop))
+            {
+                filter.Status = "skipped";
+                _logger.LogWarning("Clinical filter skipped: no mapping for {Table}.{Field}",
+                    filter.Table, filter.Field);
+                continue;
+            }
+
+            var op = filter.Operator;
+            // First/last name filters target a combined "First Last" column;
+            // degrade equals to a case-insensitive substring match.
+            if (CombinedNameProps.Contains(prop) && op.Equals("equals", StringComparison.OrdinalIgnoreCase))
+                op = "contains";
+
+            var predicate = BuildPredicate<ClinicalFlatRow>(typeof(ClinicalFlatRow), prop, op, filter.Value);
+            if (predicate == null)
+            {
+                filter.Status = "skipped";
+                _logger.LogWarning("Clinical filter skipped: could not build predicate for {Prop} {Op}",
+                    prop, filter.Operator);
+                continue;
+            }
+
+            result = result.Where(predicate.Compile());
+            filter.Status = "applied";
+        }
+
+        return result.ToList();
+    }
+
     // Operators that are not meaningful for string comparisons. If the brain
     // emits greaterThan/lessThan for a string field, the filter is skipped
     // rather than silently degraded to equals.
@@ -89,6 +200,7 @@ public class ReportQueryService
                 InfusionDate = e.InfusionDate,
                 EventId = e.EventId,
                 TransplantNumber = e.TransplantNumber,
+                DonorType = e.DonorType,
                 IsInpatient = e.IsInpatient ? "Yes" : "No"
             })
             .OrderBy(e => e.DateOfVisit)
@@ -108,6 +220,14 @@ public class ReportQueryService
             {
                 filter.Status = "skipped";
                 _logger.LogWarning("Skipping filter: disallowed operator '{Op}'", filter.Operator);
+                continue;
+            }
+
+            if (!IsFilterableField(filter.Table, filter.Field))
+            {
+                filter.Status = "skipped";
+                _logger.LogWarning("Skipping filter: field {Table}.{Field} is not filterable",
+                    filter.Table, filter.Field);
                 continue;
             }
 
