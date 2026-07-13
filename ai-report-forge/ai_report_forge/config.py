@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen2.5-coder:3b"
+    ollama_model: str = "qwen2.5:3b"
     ollama_timeout: int = 60
 
     anthropic_api_key: str = ""

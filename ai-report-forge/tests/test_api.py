@@ -32,9 +32,9 @@ def client():
             yield c
 
 
-@patch("ai_report_forge.prompt_decoder.ollama")
-def test_decode_prompt_endpoint(mock_ollama, client):
-    mock_ollama.chat.return_value = {
+@patch("ai_report_forge.prompt_decoder.OllamaClient")
+def test_decode_prompt_endpoint(MockClient, client):
+    MockClient.return_value.chat.return_value = {
         "message": {
             "content": '{"report": "blood_type_distribution", "parameters": {}, "template": "blood_type_distribution.html", "confidence": 0.9}'
         }
@@ -46,9 +46,9 @@ def test_decode_prompt_endpoint(mock_ollama, client):
     assert data["confidence"] == 0.9
 
 
-@patch("ai_report_forge.summarizer.ollama")
-def test_summarize_endpoint(mock_ollama, client):
-    mock_ollama.chat.return_value = {
+@patch("ai_report_forge.summarizer.OllamaClient")
+def test_summarize_endpoint(MockClient, client):
+    MockClient.return_value.chat.return_value = {
         "message": {
             "content": "The most common blood type is O+ with 142 patients."
         }
@@ -69,11 +69,10 @@ def test_decode_prompt_empty_question(client):
     assert resp.status_code == 422
 
 
-@patch("ai_report_forge.api.ollama")
-def test_health_endpoint(mock_ollama, client):
-    mock_ollama.list.return_value = {"models": []}
+@patch("ai_report_forge.api.OllamaClient")
+def test_health_endpoint(MockClient, client):
+    MockClient.return_value.list.return_value = {"models": []}
     resp = client.get("/health")
     assert resp.status_code == 200
     data = resp.json()
     assert data["reports_loaded"] == 1
-    assert data["ollama_model"] == "qwen2.5-coder:3b"

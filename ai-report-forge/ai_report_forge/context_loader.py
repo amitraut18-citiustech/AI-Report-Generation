@@ -45,10 +45,29 @@ class AppContext:
     phi: PhiMarkers = field(default_factory=PhiMarkers)
 
     def report_summaries_text(self) -> str:
-        lines = []
+        if not self.reports:
+            return "(no reports loaded)"
+        parts = []
         for key, entry in self.reports.items():
-            lines.append(f"- **{key}** ({entry.title}): template={entry.template_file}")
-        return "\n".join(lines) if lines else "(no reports loaded)"
+            field_names = ", ".join(f["Field"] for f in entry.fields if "Field" in f) or "N/A"
+            param_info = ", ".join(
+                f"{p.get('Name', '?')} ({p.get('Type', '?')})"
+                for p in entry.parameters if p.get("User-facing?", "").lower().startswith("yes")
+            ) or "none"
+            source_line = ""
+            for line in entry.thought_content.splitlines():
+                if line.strip().startswith("- **Description:**"):
+                    source_line = line.split("**Description:**", 1)[1].strip()
+                    break
+            parts.append(
+                f"### {key}\n"
+                f"- Title: {entry.title}\n"
+                f"- Template: {entry.template_file}\n"
+                f"- Description: {source_line or entry.title}\n"
+                f"- Fields: {field_names}\n"
+                f"- User parameters: {param_info}"
+            )
+        return "\n\n".join(parts)
 
     def schema_text(self) -> str:
         if not self.schema.tables:

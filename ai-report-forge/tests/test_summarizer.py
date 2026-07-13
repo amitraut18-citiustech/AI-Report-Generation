@@ -20,9 +20,9 @@ def test_quality_check_fails_no_data_reference():
     assert _quality_check(summary, results) is False
 
 
-@patch("ai_report_forge.summarizer.ollama")
-def test_summarize_returns_narrative(mock_ollama):
-    mock_ollama.chat.return_value = {
+@patch("ai_report_forge.summarizer.OllamaClient")
+def test_summarize_returns_narrative(MockClient):
+    MockClient.return_value.chat.return_value = {
         "message": {
             "content": "The most common blood type is O+ with 142 patients, representing 29% of the population."
         }
@@ -37,9 +37,9 @@ def test_summarize_returns_narrative(mock_ollama):
     assert "142" in result["summary"]
 
 
-@patch("ai_report_forge.summarizer.ollama")
-def test_summarize_flags_failure_on_bad_response(mock_ollama):
-    mock_ollama.chat.return_value = {"message": {"content": "Hi"}}
+@patch("ai_report_forge.summarizer.OllamaClient")
+def test_summarize_flags_failure_on_bad_response(MockClient):
+    MockClient.return_value.chat.return_value = {"message": {"content": "Hi"}}
     result = summarize(
         question="Blood types",
         results=[{"BloodType": "O+", "Count": 142}],
@@ -49,9 +49,9 @@ def test_summarize_flags_failure_on_bad_response(mock_ollama):
     assert result["error"] == "quality_check_failed"
 
 
-@patch("ai_report_forge.summarizer.ollama")
-def test_summarize_handles_connection_error(mock_ollama):
-    mock_ollama.chat.side_effect = ConnectionError("Ollama down")
+@patch("ai_report_forge.summarizer.OllamaClient")
+def test_summarize_handles_connection_error(MockClient):
+    MockClient.return_value.chat.side_effect = ConnectionError("Ollama down")
     result = summarize(
         question="Blood types",
         results=[{"BloodType": "O+", "Count": 142}],
