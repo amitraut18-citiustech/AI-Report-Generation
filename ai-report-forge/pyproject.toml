@@ -1,0 +1,8 @@
+[project]
+name = "ai-report-forge"
+version = "0.1.0"
+description = "Phase 2 brain service — NL prompt decoding and result summarization via Ollama/Claude"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,7 +1,7 @@
 import json
 import logging
 
-import ollama
+from ollama import Client as OllamaClient
 
 from .config import settings
 
@@ -38,7 +38,8 @@ def summarize(
     )
 
     try:
-        response = ollama.chat(
+        client = OllamaClient(host=settings.ollama_base_url)
+        response = client.chat(
             model=settings.ollama_model,
             messages=[{"role": "user", "content": prompt}],
             options={"temperature": 0.3},

@@ -42,9 +42,10 @@ def test_parse_invalid_json_returns_unknown():
     assert result["confidence"] == 0.0
 
 
-@patch("ai_report_forge.prompt_decoder.ollama")
-def test_decode_calls_ollama(mock_ollama):
-    mock_ollama.chat.return_value = {
+@patch("ai_report_forge.prompt_decoder.OllamaClient")
+def test_decode_calls_ollama(MockClient):
+    mock_instance = MockClient.return_value
+    mock_instance.chat.return_value = {
         "message": {
             "content": '{"report": "blood_type_distribution", "parameters": {}, "template": "blood_type_distribution.html", "confidence": 0.9}'
         }
@@ -53,12 +54,12 @@ def test_decode_calls_ollama(mock_ollama):
     result = decode_prompt("Show blood types", ctx)
 
     assert result["report"] == "blood_type_distribution"
-    mock_ollama.chat.assert_called_once()
+    mock_instance.chat.assert_called_once()
 
 
-@patch("ai_report_forge.prompt_decoder.ollama")
-def test_decode_handles_ollama_failure(mock_ollama):
-    mock_ollama.chat.side_effect = ConnectionError("Ollama down")
+@patch("ai_report_forge.prompt_decoder.OllamaClient")
+def test_decode_handles_ollama_failure(MockClient):
+    MockClient.return_value.chat.side_effect = ConnectionError("Ollama down")
     ctx = _make_ctx()
     result = decode_prompt("Show blood types", ctx)
 

@@ -114,9 +114,19 @@ class Anonymizer:
         return "[REGION]"
 
 
+import re as _re
+
+
 def remap_narrative(narrative: str, mapping: dict) -> str:
-    result = narrative
+    replacements: list[tuple[str, str]] = []
     for _strategy_key, value_map in mapping.items():
         for original, pseudonym in value_map.items():
-            result = result.replace(pseudonym, original)
+            replacements.append((pseudonym, original))
+
+    replacements.sort(key=lambda pair: len(pair[0]), reverse=True)
+
+    result = narrative
+    for pseudonym, original in replacements:
+        pattern = _re.compile(_re.escape(pseudonym) + r"(?![_\w])")
+        result = pattern.sub(original, result)
     return result

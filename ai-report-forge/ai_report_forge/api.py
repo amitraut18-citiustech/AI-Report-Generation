@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-import ollama
+from ollama import Client as OllamaClient
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -59,6 +59,7 @@ class SummarizeRequest(BaseModel):
     question: str = Field(..., min_length=1)
     results: list[dict]
     row_count: int = Field(..., ge=0)
+    table: str = Field(default="Patients", description="Primary table name for PHI anonymization lookup")
 
 
 class SummarizeResponse(BaseModel):
@@ -101,6 +102,7 @@ def handle_summarize(req: SummarizeRequest):
         results=req.results,
         row_count=req.row_count,
         phi_markers=ctx.phi,
+        table=req.table,
     )
 
     if fallback.get("error") and not fallback.get("summary"):
@@ -121,7 +123,7 @@ def handle_health():
     ctx = _get_ctx()
     ollama_ok = False
     try:
-        ollama.list()
+        OllamaClient(host=settings.ollama_base_url).list()
         ollama_ok = True
     except Exception:
         pass
