@@ -11,7 +11,8 @@ _BASE_DIR = Path(__file__).resolve().parents[1]
 class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:3b"
-    ollama_timeout: int = 60
+    ollama_timeout: int = 120
+    ollama_keep_alive: str = "30m"
 
     anthropic_api_key: str = ""
     claude_model: str = "claude-opus-4-8"
