@@ -51,9 +51,9 @@
     <p class="subtitle">Requirements for an AI-driven platform to replace SSRS/Crystal reporting</p>
     <table class="doc-info">
       <tr><td>Document</td><td>Requirements Specification (SRS / BRD)</td></tr>
-      <tr><td>Version</td><td>1.0 (baseline)</td></tr>
-      <tr><td>Status</td><td>Approved — baseline for design &amp; build</td></tr>
-      <tr><td>Date</td><td>2026-06-18</td></tr>
+      <tr><td>Version</td><td>1.1 (revised — user-selectable cloud model, provenance disclosure, charts off by default)</td></tr>
+      <tr><td>Status</td><td>Approved — baseline 1.0 of 2026-06-18, revised to as-built</td></tr>
+      <tr><td>Date</td><td>2026-07-14</td></tr>
       <tr><td>Author</td><td>AI Report Forge Project Team</td></tr>
       <tr><td>Precedes</td><td>Architecture &amp; Design (2026-06-25), Implementation (Phases 1–2)</td></tr>
     </table>
@@ -125,8 +125,8 @@
   <ul>
     <li>Migration of existing SSRS <code>.rdl</code> (and Crystal doc) reports to static HTML+JS report templates.</li>
     <li>A runtime web application that serves reports populated with live data.</li>
-    <li>Natural-language question → report selection + filters, via a local LLM.</li>
-    <li>AI-generated narrative summaries (and optional chart) for report results.</li>
+    <li>Natural-language question → report selection + filters, via a local LLM or — at the user's explicit choice — a cloud LLM (Claude), with automatic cloud fallback when the local model fails.</li>
+    <li>AI-generated narrative summaries for report results (charts supported behind a configuration flag, disabled by default).</li>
     <li>PDF export and rendering of the original SSRS definitions for parity.</li>
     <li>A database schema map and PHI classification driving decoding and anonymization.</li>
   </ul>
@@ -173,6 +173,8 @@
       <tr><td>FR-3.3</td><td>The system shall use a database schema map so that terms are resolved to the correct table/column (e.g. a facility name vs. a patient name).</td><td class="pri should">Should</td></tr>
       <tr><td>FR-3.4</td><td>When no report matches, the system shall return a clear “unknown / cannot answer” response rather than a fabricated result.</td><td class="pri must">Must</td></tr>
       <tr><td>FR-3.5</td><td>Users shall also be able to select a report and set filters manually, without asking a question.</td><td class="pri should">Should</td></tr>
+      <tr><td>FR-3.6</td><td>Users shall be able to choose which model interprets their question — the local LLM (default) or the cloud LLM — via distinct actions in the UI.</td><td class="pri should">Should</td></tr>
+      <tr><td>FR-3.7</td><td>The system shall always disclose which model produced an answer (local, cloud, or cloud-as-fallback) alongside the result. <em>(As built: additionally, a Prompt Log page shows, per LLM call, the original question/data side-by-side with the scrubbed/anonymized payload actually sent.)</em></td><td class="pri must">Must</td></tr>
     </tbody>
   </table>
 
@@ -192,7 +194,7 @@
     <thead><tr><th>ID</th><th>Requirement</th><th class="pri">Priority</th></tr></thead>
     <tbody>
       <tr><td>FR-5.1</td><td>The system shall present an AI-generated narrative summary of the report results.</td><td class="pri should">Should</td></tr>
-      <tr><td>FR-5.2</td><td>The system may present an optional chart when appropriate; any chart specification shall be validated before rendering.</td><td class="pri could">Could</td></tr>
+      <tr><td>FR-5.2</td><td>The system may present an optional chart when appropriate; any chart specification shall be validated before rendering. <em>(As built: implemented behind a configuration flag, disabled by default to keep LLM responses fast and the PoC focused.)</em></td><td class="pri could">Could</td></tr>
       <tr><td>FR-5.3</td><td>The system shall allow the report to be downloaded as a PDF.</td><td class="pri must">Must</td></tr>
       <tr><td>FR-5.4</td><td>The system should be able to render the original SSRS <code>.rdl</code> definition for side-by-side parity with the HTML report.</td><td class="pri should">Should</td></tr>
     </tbody>
@@ -202,9 +204,9 @@
   <table class="req">
     <thead><tr><th>ID</th><th>Requirement</th><th class="pri">Priority</th></tr></thead>
     <tbody>
-      <tr><td>NFR-1 · Privacy/PHI</td><td>Patient PHI shall never leave the server boundary in the clear. Any data (and the user’s question) sent to a cloud LLM shall first be anonymized (pseudonymization, age-range generalization, redaction, region-only), and real values re-mapped locally afterwards.</td><td class="pri must">Must</td></tr>
+      <tr><td>NFR-1 · Privacy/PHI</td><td>Database rows shall never leave the server boundary in the clear. Any rows sent to an LLM for summarization (local or cloud) shall first be anonymized (pseudonymization, age-range generalization, redaction, region-only), with known PHI values also scrubbed from the question, and real values re-mapped locally afterwards. Exception: the question-decoding step inherently transmits the question text to the chosen model (filter values must be extracted from it) — never any rows — and any cloud use is disclosed per FR-3.7.</td><td class="pri must">Must</td></tr>
       <tr><td>NFR-2 · Security</td><td>Reporting shall be read-only; queries shall be parameterized; the query specification passed between components shall be tamper-resistant (signed/encrypted); destructive or off-topic requests shall fail closed.</td><td class="pri must">Must</td></tr>
-      <tr><td>NFR-3 · Local-first</td><td>The primary language model shall run locally (on-device) so that routine operation requires no external network or per-call cloud cost; a cloud model may be used only as an anonymized fallback.</td><td class="pri must">Must</td></tr>
+      <tr><td>NFR-3 · Local-first</td><td>The default language model shall run locally (on-device) so that routine operation requires no external network or per-call cloud cost. A cloud model may be used only (a) on the user's explicit request, or (b) as an automatic fallback when the local model fails — in both cases visibly disclosed in the UI.</td><td class="pri must">Must</td></tr>
       <tr><td>NFR-4 · Reliability</td><td>If the language model is unavailable or fails, the system shall degrade gracefully and return an honest error rather than fabricated content; manual report selection shall still work.</td><td class="pri must">Must</td></tr>
       <tr><td>NFR-5 · Performance</td><td>Prompt decoding should complete within ~10s and data retrieval within ~5s on the target hardware; results should be capped to a safe row limit.</td><td class="pri should">Should</td></tr>
       <tr><td>NFR-6 · Maintainability</td><td>Report definitions shall be plain, version-controlled text (HTML/JS/JSON/Markdown) that can be reviewed via normal code review.</td><td class="pri must">Must</td></tr>
@@ -241,7 +243,7 @@
     <li><strong>AC2.</strong> A user can submit a plain-English question and receive the correct report, filtered accordingly, with an AI summary.</li>
     <li><strong>AC3.</strong> Filters are demonstrably applied at the database level and change the returned rows.</li>
     <li><strong>AC4.</strong> A report can be exported to PDF, and the original SSRS definition can be rendered for parity.</li>
-    <li><strong>AC5.</strong> When the local LLM is stopped, the system either falls back to the anonymized cloud path or fails honestly — never fabricates data, and never sends un-anonymized PHI externally.</li>
+    <li><strong>AC5.</strong> When the local LLM is stopped, the system either falls back to the cloud model (with the fallback visibly disclosed) or fails honestly — never fabricates data, and never sends database rows externally in the clear.</li>
     <li><strong>AC6.</strong> New reports can be added without modifying/rebuilding a report server.</li>
   </ul>
 
@@ -266,8 +268,8 @@
   </ul>
 
   <footer>
-    AI Report Forge — Requirements Specification v1.0 (baseline). This document defines <em>what</em> the
-    system must do; the accompanying Architecture &amp; Design document defines <em>how</em>.
+    AI Report Forge — Requirements Specification v1.1 (revised 2026-07-14; baseline v1.0 of 2026-06-18).
+    This document defines <em>what</em> the system must do; see <code>docs/architecture.md</code> for <em>how</em>.
   </footer>
 
 </div>

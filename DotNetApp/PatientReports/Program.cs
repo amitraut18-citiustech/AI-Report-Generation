@@ -61,6 +61,6 @@ using (var scope = app.Services.CreateScope())
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+    pattern: "{controller=Reports}/{action=HtmlReports}/{id?}");
 
 app.Run();

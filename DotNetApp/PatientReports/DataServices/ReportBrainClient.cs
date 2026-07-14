@@ -19,9 +19,9 @@ public class ReportBrainClient
         _httpClient = httpClient;
     }
 
-    public async Task<DecodeResult> DecodePromptAsync(string question)
+    public async Task<DecodeResult> DecodePromptAsync(string question, string provider = "local")
     {
-        var payload = new { question };
+        var payload = new { question, provider };
         var json = JsonSerializer.Serialize(payload, JsonOpts);
 
         using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -37,6 +37,22 @@ public class ReportBrainClient
         var body = await response.Content.ReadAsStringAsync();
         return JsonSerializer.Deserialize<DecodeResult>(body, JsonOpts)
                ?? new DecodeResult();
+    }
+
+    public async Task<PromptLogResponse> GetPromptLogAsync()
+    {
+        using var response = await _httpClient.GetAsync("prompt-log");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException(
+                $"Brain /prompt-log returned {(int)response.StatusCode}: {error}");
+        }
+
+        var body = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<PromptLogResponse>(body, JsonOpts)
+               ?? new PromptLogResponse();
     }
 
     public async Task<SummarizeResult> SummarizeAsync(

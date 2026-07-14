@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     ollama_timeout: int = 120
     ollama_keep_alive: str = "30m"
 
+    # Charts added latency and distracted from the core SSRS-replacement PoC;
+    # keep the rendering pipeline intact but don't ask the LLM for chart specs.
+    enable_charts: bool = False
+
     anthropic_api_key: str = ""
     claude_model: str = "claude-opus-4-8"
     claude_max_tokens: int = 4096

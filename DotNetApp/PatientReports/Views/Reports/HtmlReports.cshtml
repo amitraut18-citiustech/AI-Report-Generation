@@ -14,9 +14,38 @@
                value="@Model.Question" />
     </div>
     <div class="col-auto">
-        <button type="submit" class="btn btn-success" id="askBtn">Ask</button>
+        <button type="submit" name="provider" value="local" class="btn btn-success" id="askBtn">Ask Local AI</button>
+    </div>
+    <div class="col-auto">
+        <button type="submit" name="provider" value="claude" class="btn btn-warning" id="askClaudeBtn"
+                title="Sends the anonymized question to the Claude API">Ask Claude</button>
     </div>
 </form>
+
+@if (!string.IsNullOrEmpty(Model.DecodedBy))
+{
+    @if (Model.DecodedBy == "claude_fallback")
+    {
+        <div class="alert alert-warning d-flex align-items-center py-2 mb-3" role="alert">
+            <span class="badge bg-warning text-dark me-2">Claude (fallback)</span>
+            <span>The local LLM could not interpret your question, so it was answered by <strong>Claude</strong>.</span>
+        </div>
+    }
+    else if (Model.DecodedBy == "claude")
+    {
+        <div class="alert alert-warning d-flex align-items-center py-2 mb-3" role="alert">
+            <span class="badge bg-warning text-dark me-2">Claude</span>
+            <span>This question was answered directly by the <strong>Claude API</strong>.</span>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-secondary d-flex align-items-center py-2 mb-3" role="alert">
+            <span class="badge bg-secondary me-2">Local LLM</span>
+            <span>This question was answered by the local model (Ollama) — no data left this machine.</span>
+        </div>
+    }
+}
 
 @if (Model.AppliedFilters.Any())
 {
@@ -117,13 +146,22 @@ else
     (function () {
         var form = document.getElementById("askForm");
         if (!form) return;
-        form.addEventListener("submit", function () {
+        form.addEventListener("submit", function (e) {
             var q = document.getElementById("question");
             if (!q || !q.value.trim()) return;           // nothing to ask — no spinner
             var sp = document.getElementById("askSpinner");
             if (sp) sp.style.display = "flex";
-            var btn = document.getElementById("askBtn");
-            if (btn) { btn.disabled = true; btn.textContent = "Asking…"; }
+            var clicked = (e.submitter && e.submitter.id) || "askBtn";
+            // Defer disabling so the clicked button's provider value is still
+            // included in the submitted form data.
+            setTimeout(function () {
+                ["askBtn", "askClaudeBtn"].forEach(function (id) {
+                    var btn = document.getElementById(id);
+                    if (!btn) return;
+                    btn.disabled = true;
+                    if (id === clicked) btn.textContent = "Asking…";
+                });
+            }, 0);
         });
     })();
 </script>

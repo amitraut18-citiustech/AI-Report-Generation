@@ -227,6 +227,6 @@ When `narrative` is non-empty, `renderNarrative()` builds a styled card:
 
 - **Header:** Dark navy bar with an SVG info icon and the label "AI Summary" (`.report__narrative-header`)
 - **Body:** The narrative text is split into paragraphs (every two sentences grouped) and rendered as `<p>` elements (`.report__narrative-body`)
-- **Chart:** If `window.REPORT_DATA.chart` is present (type, title, labels, values), a Chart.js canvas is inserted after the narrative section
+- **Chart:** If `window.REPORT_DATA.chart` is present (type, title, labels, values), a Chart.js canvas is inserted after the narrative section (charts are disabled by default via the brain's `ENABLE_CHARTS` setting, so this field is normally absent)
 
 The narrative section is hidden when `narrative` is empty.

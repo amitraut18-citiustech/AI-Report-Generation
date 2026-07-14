@@ -3,6 +3,7 @@ import logging
 
 from ollama import Client as OllamaClient
 
+from . import prompt_log
 from .anonymizer import Anonymizer, AnonymizationResult, remap_narrative, scrub_text
 from .config import settings
 from .context_loader import PhiMarkers
@@ -119,6 +120,7 @@ def summarize(
     # Anonymize data before sending to Ollama (same as the Claude path).
     # Even though Ollama is typically local, this prevents PHI from leaking
     # into logs, model caches, or a future remote deployment.
+    original_question = question
     anon_result: AnonymizationResult | None = None
     if phi_markers is not None:
         anonymizer = Anonymizer(phi_markers)
@@ -130,6 +132,16 @@ def summarize(
     else:
         send_rows = results
 
+    prompt_log.record({
+        "kind": "summarize",
+        "model": "ollama",
+        "originalQuestion": original_question,
+        "sentQuestion": question,
+        "originalRowsSample": results[:3],
+        "sentRowsSample": send_rows[:3],
+        "rowCount": row_count,
+    })
+
     sample = send_rows[:100]
     truncation_note = ""
     if row_count > len(sample):
@@ -139,7 +151,7 @@ def summarize(
         )
 
     results_json = json.dumps(sample, default=str)
-    include_chart = settings.ollama_model not in _SMALL_MODELS
+    include_chart = settings.enable_charts and settings.ollama_model not in _SMALL_MODELS
     prompt = _build_summarize_prompt(
         question=question,
         results_json=results_json,

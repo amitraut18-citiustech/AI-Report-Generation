@@ -22,6 +22,9 @@ public class DecodeResult
     public double Confidence { get; set; }
     public string? Message { get; set; }
 
+    /// <summary>Which model produced the decode: "ollama" or "claude".</summary>
+    public string? Source { get; set; }
+
     /// <summary>
     /// Ensures <see cref="Query.Filters"/> is populated regardless of whether
     /// the brain returned filters inside "query" or at the top level.

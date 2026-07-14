@@ -100,8 +100,8 @@
     <section class="slide cover active">
       <p class="kicker" style="color:#9fb4dd">AI Report Forge</p>
       <h1>Report Migrator Plugin</h1>
-      <p class="lead"><b style="color:#fff">Phase 1</b> migrates legacy SSRS reports to web-native HTML with a Claude Code plugin. <b style="color:#fff">Phase 2</b> serves them at runtime with natural-language querying and a local LLM.</p>
-      <span class="pill">Phase 1: Problem → SSRS pain → HTML → Plugin → Migration &nbsp;·&nbsp; Phase 2: Runtime → NL query → Brain → PHI safety</span>
+      <p class="lead"><b style="color:#fff">Phase 1</b> migrates legacy SSRS reports to web-native HTML with a Claude Code plugin. <b style="color:#fff">Phase 2</b> serves them at runtime with natural-language querying — via a local LLM or the Claude API, the user's choice.</p>
+      <span class="pill">Phase 1: Problem → SSRS pain → HTML → Plugin → Migration &nbsp;·&nbsp; Phase 2: Runtime → NL query → Local / Claude → PHI safety</span>
     </section>
 
     <!-- 2 PROBLEM -->
@@ -285,21 +285,23 @@ DataSchemaMapping/
     <section class="slide">
       <span class="tag">08 · Phase 2 · Runtime</span>
       <h2>AI-driven reporting at runtime</h2>
-      <p class="lead">The migrated HTML reports come alive: users ask questions in plain English and get filtered reports with an AI summary — powered by a local LLM.</p>
+      <p class="lead">The migrated HTML reports come alive: users ask questions in plain English — decoded by a <b>local LLM</b> or, at the user's choice, by <b>Claude</b> — and get filtered reports with an AI summary.</p>
       <div class="tree">Browser
   │  "Give me patient data for Austin General"
+  │  [Ask Local AI]  or  [Ask Claude]
   ▼
 .NET MVC app        (:5282)   UI · auth · data access · report serving
-  │  POST /decode-prompt            POST /summarize
+  │  POST /decode-prompt {question, provider}     POST /summarize
   ▼
 Python brain        (:8080)   FastAPI — NL → QuerySpec, narrative
-  │                                └──▶ Claude API  (anonymized fallback)
-  ▼
-Ollama              (:11434)  qwen2.5:3b — local LLM
+  ├──▶ Ollama       (:11434)  qwen2.5:3b — local LLM (default)
+  └──▶ Claude API             direct "Ask Claude", or automatic
+                              fallback when the local model fails
 
 .NET also ──▶ SQLite (EF Core)             live data
           ──▶ HTMLReportsFolder/           template + window.REPORT_DATA
-          ──▶ RdlRenderService (:5250)     real .rdl → PDF</div>
+          ──▶ RdlRenderService (:5250)     real .rdl rendering + PDF</div>
+      <p class="small muted" style="margin-top:12px">A <b>provenance banner</b> on every answer shows which model decoded it — Local LLM, Claude, or Claude (fallback). Cloud usage is never silent.</p>
     </section>
 
     <!-- 10 NL QUERY FLOW -->
@@ -307,15 +309,15 @@ Ollama              (:11434)  qwen2.5:3b — local LLM
       <span class="tag">09 · Natural-language query</span>
       <h2>From a plain-English question to a filtered report</h2>
       <div class="flow">
-        <div class="step"><span class="n">ASK</span><b>User question</b><span class="small muted">plain English</span></div>
+        <div class="step"><span class="n">ASK</span><b>User question</b><span class="small muted">+ model choice:<br/>Local AI or Claude</span></div>
         <div class="arrow">→</div>
-        <div class="step"><span class="n">DECODE</span><b>Brain + LLM</b><span class="small muted">/decode-prompt → QuerySpec</span></div>
+        <div class="step"><span class="n">DECODE</span><b>Brain + LLM</b><span class="small muted">/decode-prompt → QuerySpec<br/>(local auto-falls back to Claude)</span></div>
         <div class="arrow">→</div>
         <div class="step"><span class="n">FILTER</span><b>.NET + EF Core</b><span class="small muted">table-qualified WHERE → SQLite</span></div>
         <div class="arrow">→</div>
-        <div class="step"><span class="n">SUMMARIZE</span><b>Brain + LLM</b><span class="small muted">/summarize → narrative + chart</span></div>
+        <div class="step"><span class="n">SUMMARIZE</span><b>Brain + LLM</b><span class="small muted">/summarize → narrative<br/>(anonymized data only)</span></div>
         <div class="arrow">→</div>
-        <div class="step"><span class="n">RENDER</span><b>HTML template</b><span class="small muted">rows + summary</span></div>
+        <div class="step"><span class="n">RENDER</span><b>HTML template</b><span class="small muted">rows + summary +<br/>provenance banner</span></div>
       </div>
       <div class="card" style="margin-top:16px">
         <h3>Example</h3>
@@ -330,8 +332,8 @@ Ollama              (:11434)  qwen2.5:3b — local LLM
       <h2>The brain service (FastAPI)</h2>
       <div class="grid two">
         <div class="card"><h3>Endpoints</h3><ul class="small">
-          <li><code>POST /decode-prompt</code> — NL question → report key + table-qualified filters</li>
-          <li><code>POST /summarize</code> — rows → narrative (+ optional chart)</li>
+          <li><code>POST /decode-prompt</code> — question + <code>provider</code> (local | claude) → report key + table-qualified filters + <code>source</code></li>
+          <li><code>POST /summarize</code> — rows → narrative (charts off by default)</li>
           <li><code>GET /health</code> — readiness: reports, schema tables, PHI markers</li>
         </ul></div>
         <div class="card"><h3>Loaded at startup</h3><ul class="small">
@@ -341,8 +343,8 @@ Ollama              (:11434)  qwen2.5:3b — local LLM
         </ul></div>
       </div>
       <div class="grid two" style="margin-top:14px">
-        <div class="card good"><h3>Local LLM (primary)</h3><p class="small"><b>Ollama · qwen2.5:3b</b> — runs on-device, CPU-only; does both decode and summarize.</p></div>
-        <div class="card"><h3>Cloud fallback</h3><p class="small"><b>Anthropic Claude API</b> — only if Ollama fails, and only on <b>anonymized</b> data.</p></div>
+        <div class="card good"><h3>Local LLM (default)</h3><p class="small"><b>Ollama · qwen2.5:3b</b> — runs on-device, CPU-only; does both decode and summarize. Nothing leaves the machine.</p></div>
+        <div class="card"><h3>Claude API (cloud)</h3><p class="small"><b>Direct</b> via the "Ask Claude" button, or <b>automatic fallback</b> when the local decode fails. Summaries see <b>anonymized data only</b>; every cloud answer is labeled in the UI.</p></div>
       </div>
     </section>
 
@@ -361,12 +363,15 @@ Ollama              (:11434)  qwen2.5:3b — local LLM
       </div>
       <div class="grid two" style="margin-top:16px">
         <div class="card good"><h3>Guarantees</h3><ul class="small">
-          <li>Anonymize rows <b>and the question</b> before any LLM call; re-map locally after.</li>
-          <li>The brain refuses to start without its PHI markers.</li>
+          <li>Rows <b>and the question</b> are anonymized before any <b>summarization</b> call (local or cloud); re-mapped locally after.</li>
+          <li>The brain refuses to start without its PHI markers; deny-by-default net catches unconfigured identifier columns.</li>
+          <li><b>Provenance banner</b> on every answer — cloud usage is always disclosed.</li>
+          <li><b>Prompt Log page</b> — shows the original data side-by-side with the anonymized payload each LLM actually received.</li>
         </ul></div>
-        <div class="card warn"><h3>Guardrails</h3><ul class="small">
+        <div class="card warn"><h3>Guardrails &amp; the one exception</h3><ul class="small">
           <li>Query spec is <b>signed + encrypted</b>; only allowlisted columns are filterable.</li>
-          <li>Deterministic post-decode fixes; off-topic / destructive questions <b>fail closed</b>; honest errors (no fabricated summary).</li>
+          <li>Deterministic post-decode fixes (local model only); off-topic questions <b>fail closed</b>; honest errors (no fabricated summary).</li>
+          <li><b>Decode</b> sends the question text to the chosen model (filter values must be extracted from it) — <b>never any rows</b>.</li>
         </ul></div>
       </div>
     </section>
@@ -376,12 +381,12 @@ Ollama              (:11434)  qwen2.5:3b — local LLM
       <span class="tag">12 · Rendering</span>
       <h2>Two runtime render paths, one data layer</h2>
       <div class="grid two">
-        <div class="card good"><h3>HTML template — SSRS replacement</h3><ul class="small">
-          <li>Host injects <code>window.REPORT_DATA</code>: rows + applied filters + <b>AI narrative</b> + optional chart.</li>
-          <li>Web-native, interactive, self-contained.</li>
+        <div class="card good"><h3>AI Reports — SSRS replacement</h3><ul class="small">
+          <li>Host injects <code>window.REPORT_DATA</code>: rows + applied filters + <b>AI narrative</b>.</li>
+          <li>Web-native, interactive, self-contained. The app lands here.</li>
           <li><code>/Reports/HtmlReports</code></li>
         </ul></div>
-        <div class="card"><h3>Real SSRS .rdl → PDF</h3><ul class="small">
+        <div class="card"><h3>Classic Reports (SSRS) — real .rdl</h3><ul class="small">
           <li>Rendered by <b>RdlRenderService</b> (ReportViewer) for legacy parity.</li>
           <li>Shown in an iframe; <b>Download PDF</b> on every report.</li>
           <li><code>/Reports/Index</code></li>
@@ -399,7 +404,9 @@ Ollama              (:11434)  qwen2.5:3b — local LLM
 3) RDL service     dotnet run   (DotNetApp/RdlRenderService)        :5250
 4) .NET web app    dotnet run   (DotNetApp/PatientReports)          :5282
 
-Open  ▶  http://localhost:5282/Reports/HtmlReports</div>
+Open  ▶  http://localhost:5282   (lands on AI Reports)
+Optional: ANTHROPIC_API_KEY in ai-report-forge/.env
+          enables "Ask Claude" + automatic fallback</div>
       <div class="grid three" style="margin-top:14px">
         <div class="card"><h3>Local &amp; private</h3><p class="small">LLM runs on-device; SQLite auto-seeds on startup.</p></div>
         <div class="card"><h3>No SSRS server</h3><p class="small">HTML path needs no report server; the RDL path is a self-hosted side-service.</p></div>

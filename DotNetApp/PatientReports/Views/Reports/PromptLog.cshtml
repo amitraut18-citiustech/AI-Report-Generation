@@ -1,0 +1,114 @@
+@model PatientReports.Models.PromptLogViewModel
+@{
+    ViewData["Title"] = "Prompt Log";
+
+    static string RowsTable(List<Dictionary<string, object?>>? rows)
+    {
+        if (rows == null || rows.Count == 0) return "<div class=\"text-muted small\">—</div>";
+        var cols = rows.SelectMany(r => r.Keys).Distinct().ToList();
+        var html = new System.Text.StringBuilder();
+        html.Append("<div class=\"table-responsive\"><table class=\"table table-sm table-bordered mb-0 small\"><thead><tr>");
+        foreach (var c in cols)
+            html.Append($"<th>{System.Net.WebUtility.HtmlEncode(c)}</th>");
+        html.Append("</tr></thead><tbody>");
+        foreach (var r in rows)
+        {
+            html.Append("<tr>");
+            foreach (var c in cols)
+            {
+                r.TryGetValue(c, out var v);
+                html.Append($"<td>{System.Net.WebUtility.HtmlEncode(v?.ToString() ?? "")}</td>");
+            }
+            html.Append("</tr>");
+        }
+        html.Append("</tbody></table></div>");
+        return html.ToString();
+    }
+
+    static string LocalTime(string? iso)
+    {
+        if (DateTimeOffset.TryParse(iso, out var dto))
+            return dto.ToLocalTime().ToString("HH:mm:ss");
+        return iso ?? "";
+    }
+}
+
+<h2 class="mb-1">Prompt Log</h2>
+<p class="text-muted">
+    What was <strong>actually sent</strong> to each LLM for your recent questions — the PHI
+    anonymization pipeline, shown live. Ask a question on the AI Reports page, then refresh here.
+    The log is in-memory and clears when the brain restarts; nothing here leaves this machine.
+</p>
+
+<div class="mb-3 d-flex gap-2">
+    <a class="btn btn-outline-primary btn-sm" asp-action="PromptLog">Refresh</a>
+    <a class="btn btn-outline-secondary btn-sm" asp-action="HtmlReports">← Ask a question</a>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Error))
+{
+    <div class="alert alert-warning">@Model.Error</div>
+}
+else if (Model.Entries.Count == 0)
+{
+    <div class="alert alert-secondary">
+        No prompts logged yet. Go to <a asp-action="HtmlReports">AI Reports</a> and click
+        <strong>Ask Local AI</strong> or <strong>Ask Claude</strong> — every LLM call will appear here.
+    </div>
+}
+
+@foreach (var e in Model.Entries)
+{
+    var isDecode = e.Kind == "decode";
+    var modelLabel = isDecode
+        ? (e.Source == "ollama" ? "Local LLM" : e.Source == "claude_fallback" ? "Claude (fallback)" : "Claude")
+        : (e.Model == "claude" ? "Claude" : "Local LLM");
+    var isCloud = modelLabel.StartsWith("Claude");
+
+    <div class="card mb-3">
+        <div class="card-header d-flex align-items-center gap-2 py-2">
+            <span class="badge @(isDecode ? "bg-primary" : "bg-success")">@(isDecode ? "Decode" : "Summarize")</span>
+            <span class="badge @(isCloud ? "bg-warning text-dark" : "bg-secondary")">@modelLabel</span>
+            @if (isDecode && !string.IsNullOrEmpty(e.Report))
+            {
+                <span class="text-muted small">report: <code>@e.Report</code></span>
+            }
+            @if (!isDecode && e.RowCount.HasValue)
+            {
+                <span class="text-muted small">@e.RowCount rows summarized (first 3 shown)</span>
+            }
+            <span class="ms-auto text-muted small">@LocalTime(e.Timestamp)</span>
+        </div>
+        <div class="card-body py-3">
+            @if (isDecode)
+            {
+                <div class="mb-1"><span class="fw-semibold small text-uppercase text-muted">Question sent to the model</span></div>
+                <code class="d-block p-2 bg-light border rounded">@e.SentQuestion</code>
+                <p class="small text-muted mt-2 mb-0">@e.Note</p>
+            }
+            else
+            {
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="border border-danger-subtle rounded p-2 h-100">
+                            <div class="fw-semibold small text-uppercase text-danger mb-2">Before — real data (never sent)</div>
+                            <div class="small text-muted">Question</div>
+                            <code class="d-block p-2 bg-light border rounded mb-2">@e.OriginalQuestion</code>
+                            <div class="small text-muted">Rows</div>
+                            @Html.Raw(RowsTable(e.OriginalRowsSample))
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border border-success-subtle rounded p-2 h-100">
+                            <div class="fw-semibold small text-uppercase text-success mb-2">After — what the LLM received</div>
+                            <div class="small text-muted">Question (scrubbed)</div>
+                            <code class="d-block p-2 bg-light border rounded mb-2">@e.SentQuestion</code>
+                            <div class="small text-muted">Rows (anonymized)</div>
+                            @Html.Raw(RowsTable(e.SentRowsSample))
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}

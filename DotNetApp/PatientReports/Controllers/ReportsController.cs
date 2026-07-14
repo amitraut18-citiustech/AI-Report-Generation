@@ -126,7 +126,7 @@ public class ReportsController : Controller
     // plugin-generated static HTML templates, populated by the existing .NET
     // data logic. The selected report renders in an iframe (the standalone
     // generated template served by HtmlReport).
-    public IActionResult HtmlReports(string? report, string? question, string? brainError, string? spec)
+    public IActionResult HtmlReports(string? report, string? question, string? brainError, string? spec, string? decodedBy)
     {
         var vm = new ReportsHubViewModel
         {
@@ -134,6 +134,7 @@ public class ReportsController : Controller
             Question = question,
             BrainError = brainError,
             QuerySpecB64 = spec,
+            DecodedBy = decodedBy,
         };
 
         // Decode the spec to display the applied-filters badges in the hub page.
@@ -144,14 +145,41 @@ public class ReportsController : Controller
         return View(vm);
     }
 
-    public async Task<IActionResult> AskReport(string question)
+    // Transparency page: shows what was actually sent to each LLM (original
+    // question vs. scrubbed question / anonymized rows), fetched from the
+    // brain's in-memory prompt log. Populated by the two Ask buttons.
+    public async Task<IActionResult> PromptLog()
+    {
+        var vm = new PromptLogViewModel();
+        try
+        {
+            var log = await _brainClient.GetPromptLogAsync();
+            vm.Entries = log.Entries;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch prompt log from brain");
+            vm.Error = "The AI brain service is unavailable — the prompt log lives there.";
+        }
+        return View(vm);
+    }
+
+    public async Task<IActionResult> AskReport(string question, string provider = "local")
     {
         if (string.IsNullOrWhiteSpace(question))
             return RedirectToAction(nameof(HtmlReports));
 
+        // The brain owns the Claude API key (ai-report-forge/.env). "claude"
+        // decodes directly on the Claude API; "local" uses Ollama with an
+        // automatic Claude fallback when configured. If Claude is not
+        // configured the brain returns UNKNOWN with an explanatory message,
+        // which surfaces below as brainError.
+        if (provider != "claude")
+            provider = "local";
+
         try
         {
-            var decoded = await _brainClient.DecodePromptAsync(question);
+            var decoded = await _brainClient.DecodePromptAsync(question, provider);
 
             if (decoded.Report == "UNKNOWN" || decoded.Confidence < 0.3)
             {
@@ -183,7 +211,7 @@ public class ReportsController : Controller
             if (decoded.Query.Filters.Count > 0)
                 specB64 = EncodeQuerySpec(decoded.Query);
 
-            return RedirectToAction(nameof(HtmlReports), new { report = reportKey, question, spec = specB64 });
+            return RedirectToAction(nameof(HtmlReports), new { report = reportKey, question, spec = specB64, decodedBy = decoded.Source });
         }
         catch (Exception ex)
         {

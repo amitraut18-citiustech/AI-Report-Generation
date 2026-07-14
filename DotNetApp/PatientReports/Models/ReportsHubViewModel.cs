@@ -16,6 +16,9 @@ public class ReportsHubViewModel
 
     public string? Question { get; set; }
     public string? BrainError { get; set; }
+
+    /// <summary>Which model decoded the question: "ollama" or "claude".</summary>
+    public string? DecodedBy { get; set; }
     public List<QueryFilter> AppliedFilters { get; set; } = new();
 
     /// <summary>
