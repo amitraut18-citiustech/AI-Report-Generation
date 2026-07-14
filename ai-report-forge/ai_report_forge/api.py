@@ -6,6 +6,7 @@ from ollama import Client as OllamaClient
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from . import prompt_log
 from .claude_fallback import summarize_with_claude
 from .config import settings
 from .context_loader import AppContext, load_context
@@ -46,6 +47,11 @@ def _get_ctx() -> AppContext:
 
 class DecodeRequest(BaseModel):
     question: str = Field(..., min_length=1)
+    provider: str = Field(
+        default="local",
+        pattern="^(local|claude)$",
+        description="'local' decodes via Ollama (with Claude fallback if configured); 'claude' goes straight to the Claude API",
+    )
 
 
 class QueryFilter(BaseModel):
@@ -81,6 +87,7 @@ class DecodeResponse(BaseModel):
     template: str | None = None
     confidence: float = 0.0
     message: str | None = None
+    source: str | None = None
 
 
 class SummarizeRequest(BaseModel):
@@ -132,7 +139,7 @@ class HealthResponse(BaseModel):
 @app.post("/decode-prompt", response_model=DecodeResponse)
 def handle_decode_prompt(req: DecodeRequest):
     ctx = _get_ctx()
-    result = decode_prompt(req.question, ctx)
+    result = decode_prompt(req.question, ctx, provider=req.provider)
     return DecodeResponse(**result)
 
 
@@ -188,6 +195,16 @@ def handle_summarize(req: SummarizeRequest):
         anonymized=fallback.get("anonymized", False),
         chart=fallback_chart,
     )
+
+
+@app.get("/prompt-log")
+def handle_prompt_log():
+    """What was actually sent to each LLM (newest first, bounded, in-memory).
+
+    Backs the app's Prompt Log transparency page: original question vs. the
+    scrubbed question and anonymized row sample that left for the model.
+    """
+    return {"entries": prompt_log.entries()}
 
 
 @app.get("/health", response_model=HealthResponse)

@@ -2,7 +2,14 @@
 
 ## How It Works
 
-Type a natural language question into the query box on the **AI Reports** page. The question is sent to the Python brain service, which uses a local LLM (Ollama / qwen2.5:3b) to determine which report to show and what filters to apply. The .NET app then executes the query against the SQLite database, renders the matching HTML report template, and generates an AI summary with an optional chart.
+Type a natural-language question into the query box on the **AI Reports** page and choose a model:
+
+- **Ask Local AI** — the Python brain decodes the question with Ollama (`qwen2.5:3b` by default). If the local model fails or is too uncertain, the brain automatically retries on the Claude API when a key is configured.
+- **Ask Claude** — the question is decoded directly by the Claude API.
+
+The brain determines which report to show and what filters to apply. The .NET app then executes the query against the SQLite database, renders the matching HTML report template, and adds an AI-generated narrative summary. A banner above the report always shows which model answered (*Local LLM*, *Claude*, or *Claude (fallback)*).
+
+The expected results below were validated with the local model; Claude generally decodes the same or better.
 
 ---
 
@@ -237,7 +244,7 @@ These queries are correctly rejected with `report = "UNKNOWN"`:
 
 ## Robustness Guardrails
 
-Because the local 3B model occasionally decodes filters incorrectly, the brain applies deterministic corrections after parsing (`prompt_decoder._sanitize_filters`):
+Because the local 3B model occasionally decodes filters incorrectly, the brain applies deterministic corrections after parsing (`prompt_decoder._sanitize_filters`). These apply to the **local model's output only** — Claude's decodes are used as-is:
 
 1. **Gender inversion fix** — "women"/"men" sometimes decodes as `Gender notEquals ...`. If the question contains no exclusion word (exclude, except, not, non, without), `notEquals` on Gender is flipped to `equals`.
 2. **City-in-Name fix** — a single-word `Facilities.Name` value with no facility keyword (hospital, clinic, center, medical) is moved to `Facilities.City` (e.g. "patients in Dallas").
@@ -252,6 +259,7 @@ The decoder prompt also includes explicit gender-synonym, location, and date-dir
 2. **No startsWith / endsWith** — only full substring match (`contains`) is available.
 3. **No aggregations** — questions like "average age by facility" or "top 5 by lab value" are not supported.
 4. **Facility filter on transplant events** — the LLM sometimes misroutes facility filters through `Providers.FacilityId` instead of the correct 2-hop path `TransplantEvents → Patient → Facility`. This can cause the facility filter to be silently dropped.
-5. **Model non-determinism** — the `qwen2.5:3b` model may occasionally produce slightly different filter structures for the same query. Results listed above are the most common outcomes.
-6. **Narrative accuracy** — the AI summary may contain minor factual errors (e.g., wrong gender counts) due to the small model's limited reasoning capacity.
+5. **Model non-determinism** — the `qwen2.5:3b` model may occasionally produce slightly different filter structures for the same query. Results listed above are the most common outcomes. Using **Ask Claude** typically resolves misdecodes.
+6. **Narrative accuracy** — the AI summary may contain minor factual errors (e.g., wrong gender counts) due to the small model's limited reasoning capacity. Verified statistics are computed programmatically and injected into the prompt to reduce this.
 7. **Filterable fields are allowlisted** — filters on PHI contact fields (Email, PhoneNumber, MRN, NPI) are deliberately blocked and will be skipped.
+8. **No charts** — charts are disabled by default (`ENABLE_CHARTS=false` in the brain's `.env`); the AI summary is text-only.

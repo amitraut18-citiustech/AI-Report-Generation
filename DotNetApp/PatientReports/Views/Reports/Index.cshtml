@@ -1,63 +1,74 @@
 @model PatientReports.Models.ReportsHubViewModel
 @{
-    ViewData["Title"] = "Reports";
+    ViewData["Title"] = "Classic Reports";
 }
 
-<h2 class="mb-3">Reports</h2>
+<h2 class="mb-1">Classic Reports</h2>
+<p class="text-muted">SSRS/RDL-rendered reports with fixed parameters.</p>
 
-<form method="get" asp-action="Index" class="row g-2 align-items-end mb-4">
-    <div class="col-auto">
-        <label for="report" class="form-label fw-semibold">Report</label>
-        <select id="report" name="report" class="form-select">
-            <option value="">-- Select a report --</option>
-            @foreach (var (value, label) in PatientReports.Models.ReportsHubViewModel.AvailableReports)
+<div class="card mb-3">
+    <div class="card-header fw-semibold">Report parameters</div>
+    <div class="card-body">
+        <form id="rdlForm" method="get" asp-action="Index" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label for="report" class="form-label fw-semibold">Report</label>
+                <select id="report" name="report" class="form-select">
+                    <option value="">-- Select a report --</option>
+                    @foreach (var (value, label) in PatientReports.Models.ReportsHubViewModel.AvailableReports)
+                    {
+                        if (Model.SelectedReport == value)
+                        {
+                            <option value="@value" selected>@label</option>
+                        }
+                        else
+                        {
+                            <option value="@value">@label</option>
+                        }
+                    }
+                </select>
+            </div>
+            @if (Model.SelectedReport is "transplant" or "clinical")
             {
-                if (Model.SelectedReport == value)
-                {
-                    <option value="@value" selected>@label</option>
-                }
-                else
-                {
-                    <option value="@value">@label</option>
-                }
+                <div class="col-auto">
+                    <label for="fromDate" class="form-label fw-semibold">Visit date from</label>
+                    <input type="date" id="fromDate" name="fromDate" class="form-control" value="@Model.FromDate" />
+                </div>
+                <div class="col-auto">
+                    <label for="toDate" class="form-label fw-semibold">Visit date to</label>
+                    <input type="date" id="toDate" name="toDate" class="form-control" value="@Model.ToDate" />
+                </div>
             }
-        </select>
+            @if (Model.SelectedReport == "clinical")
+            {
+                <div class="col-auto">
+                    <label for="minAge" class="form-label fw-semibold">Min age</label>
+                    <input type="number" id="minAge" name="minAge" min="0" max="120" style="width:6rem" class="form-control" value="@Model.MinAge" placeholder="0" />
+                </div>
+                <div class="col-auto">
+                    <label for="maxAge" class="form-label fw-semibold">Max age</label>
+                    <input type="number" id="maxAge" name="maxAge" min="0" max="120" style="width:6rem" class="form-control" value="@Model.MaxAge" placeholder="120" />
+                </div>
+            }
+            <div class="col-auto ms-auto">
+                <button type="submit" class="btn btn-primary">Generate Report</button>
+            </div>
+            @if (!string.IsNullOrEmpty(Model.SelectedReport))
+            {
+                <div class="col-auto">
+                    <a class="btn btn-outline-secondary"
+                       asp-action="Download" asp-route-report="@Model.SelectedReport">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align:-2px">
+                            <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                            <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                        </svg>
+                        Download PDF
+                    </a>
+                </div>
+            }
+        </form>
+        <div id="paramError" class="alert alert-danger mt-2 mb-0" style="display:none"></div>
     </div>
-    @if (Model.SelectedReport is "transplant" or "clinical")
-    {
-        <div class="col-auto">
-            <label for="fromDate" class="form-label fw-semibold">Visit date from</label>
-            <input type="date" id="fromDate" name="fromDate" class="form-control" value="@Model.FromDate" />
-        </div>
-        <div class="col-auto">
-            <label for="toDate" class="form-label fw-semibold">Visit date to</label>
-            <input type="date" id="toDate" name="toDate" class="form-control" value="@Model.ToDate" />
-        </div>
-    }
-    @if (Model.SelectedReport == "clinical")
-    {
-        <div class="col-auto">
-            <label for="minAge" class="form-label fw-semibold">Min age</label>
-            <input type="number" id="minAge" name="minAge" min="0" max="120" style="width:6rem" class="form-control" value="@Model.MinAge" placeholder="0" />
-        </div>
-        <div class="col-auto">
-            <label for="maxAge" class="form-label fw-semibold">Max age</label>
-            <input type="number" id="maxAge" name="maxAge" min="0" max="120" style="width:6rem" class="form-control" value="@Model.MaxAge" placeholder="120" />
-        </div>
-    }
-    <div class="col-auto">
-        <button type="submit" class="btn btn-primary">Generate Report</button>
-    </div>
-    @if (!string.IsNullOrEmpty(Model.SelectedReport))
-    {
-        <div class="col-auto">
-            <a class="btn btn-outline-danger"
-               asp-action="Download" asp-route-report="@Model.SelectedReport">
-                &#128190; Download PDF
-            </a>
-        </div>
-    }
-</form>
+</div>
 
 @if (string.IsNullOrEmpty(Model.SelectedReport))
 {
@@ -65,11 +76,50 @@
 }
 else if (Model.SelectedReport is "patient" or "transplant" or "clinical")
 {
-    <iframe src="@Url.Action("RdlView", new { report = Model.SelectedReport, fromDate = Model.FromDate, toDate = Model.ToDate, minAge = Model.MinAge, maxAge = Model.MaxAge })"
-            style="width:100%; height:900px; border:1px solid #ccc;"
-            title="Report"></iframe>
+    <div class="d-flex justify-content-end mb-1">
+        <a class="small" target="_blank"
+           href="@Url.Action("RdlView", new { report = Model.SelectedReport, fromDate = Model.FromDate, toDate = Model.ToDate, minAge = Model.MinAge, maxAge = Model.MaxAge })">
+            Open in new tab
+        </a>
+    </div>
+    <div class="border rounded">
+        <iframe id="rdlFrame"
+                src="@Url.Action("RdlView", new { report = Model.SelectedReport, fromDate = Model.FromDate, toDate = Model.ToDate, minAge = Model.MinAge, maxAge = Model.MaxAge })"
+                style="width:100%; height:80vh; border:0;"
+                title="Report"></iframe>
+    </div>
 }
 else
 {
     <div class="alert alert-warning">Unknown report selected.</div>
+}
+
+@section Scripts {
+<script>
+    (function () {
+        // Validate parameter ranges before submitting.
+        var form = document.getElementById("rdlForm");
+        var errorBox = document.getElementById("paramError");
+        if (!form || !errorBox) return;
+        form.addEventListener("submit", function (e) {
+            var errors = [];
+            var from = document.getElementById("fromDate");
+            var to = document.getElementById("toDate");
+            if (from && to && from.value && to.value && from.value > to.value)
+                errors.push("“Visit date from” must not be after “Visit date to”.");
+            var minAge = document.getElementById("minAge");
+            var maxAge = document.getElementById("maxAge");
+            if (minAge && maxAge && minAge.value !== "" && maxAge.value !== "" &&
+                Number(minAge.value) > Number(maxAge.value))
+                errors.push("“Min age” must not be greater than “Max age”.");
+            if (errors.length) {
+                e.preventDefault();
+                errorBox.textContent = errors.join(" ");
+                errorBox.style.display = "block";
+            } else {
+                errorBox.style.display = "none";
+            }
+        });
+    })();
+</script>
 }
