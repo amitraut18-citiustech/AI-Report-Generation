@@ -21,6 +21,12 @@ public class PromptLogEntry
     /// <summary>Model used for a summarize call ("ollama" / "claude").</summary>
     public string? Model { get; set; }
 
+    /// <summary>Whether the decode produced a usable result (decode entries only).</summary>
+    public bool? Succeeded { get; set; }
+
+    /// <summary>Whether a Claude fallback was attempted after a local failure (decode entries only).</summary>
+    public bool? FallbackAttempted { get; set; }
+
     /// <summary>The question text as sent to the LLM (scrubbed on summarize).</summary>
     public string? SentQuestion { get; set; }
 

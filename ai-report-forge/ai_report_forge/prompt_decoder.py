@@ -133,7 +133,9 @@ def decode_prompt(question: str, ctx: AppContext, provider: str = "local") -> di
     result = _decode_with_ollama(question, system)
 
     # Local decode failed or was too uncertain — retry on Claude when configured.
+    fallback_attempted = False
     if _needs_fallback(result) and settings.anthropic_api_key:
+        fallback_attempted = True
         log.info(
             "Local decode failed (report=%s, confidence=%.2f) — falling back to Claude",
             result["report"], result["confidence"],
@@ -143,19 +145,23 @@ def decode_prompt(question: str, ctx: AppContext, provider: str = "local") -> di
             # Distinct source so the UI can show that the local model failed
             # and Claude stepped in, vs. the user explicitly asking Claude.
             claude_result["source"] = "claude_fallback"
-            _log_decode(question, provider, claude_result)
+            _log_decode(question, provider, claude_result, fallback_attempted)
             return claude_result
 
     result["source"] = "ollama"
-    _log_decode(question, provider, result)
+    _log_decode(question, provider, result, fallback_attempted)
     return result
 
 
-def _log_decode(question: str, provider: str, result: dict) -> None:
+def _log_decode(
+    question: str, provider: str, result: dict, fallback_attempted: bool = False
+) -> None:
     prompt_log.record({
         "kind": "decode",
         "provider": provider,
         "source": result.get("source"),
+        "succeeded": not _needs_fallback(result),
+        "fallbackAttempted": fallback_attempted,
         "sentQuestion": question,
         "report": result.get("report"),
         "note": (

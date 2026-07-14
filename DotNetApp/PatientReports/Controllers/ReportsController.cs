@@ -292,11 +292,36 @@ public class ReportsController : Controller
                 return RedirectToAction(nameof(HtmlReports));
         }
 
+        // Fail closed: if any brain-decoded filter was skipped (blocked PHI
+        // field, disallowed operator, or no navigation path), do NOT render a
+        // broader result than the user asked for. Probing a blocked field
+        // (e.g. "MRN-00003") must not dump the whole table.
+        var skippedFilters = hasBrainQuery
+            ? querySpec!.Filters.Where(f => f.Status == "skipped").ToList()
+            : new List<QueryFilter>();
+        if (skippedFilters.Count > 0)
+        {
+            _logger.LogWarning(
+                "Report '{Report}' not populated: {Count} filter(s) skipped ({Fields})",
+                report, skippedFilters.Count,
+                string.Join(", ", skippedFilters.Select(f => $"{f.Table}.{f.Field}")));
+            rows = Array.Empty<object>();
+        }
+
         var rowList = (System.Collections.ICollection)rows;
         var narrative = "";
         object? chart = null;
 
-        if (!string.IsNullOrWhiteSpace(question))
+        if (skippedFilters.Count > 0)
+        {
+            narrative = "Your question included a condition that cannot be used for "
+                + "filtering (a protected or unsupported field: "
+                + string.Join(", ", skippedFilters.Select(f => f.Field).Distinct())
+                + "). To avoid showing more data than you asked for, no rows are "
+                + "displayed. Please rephrase using supported filters (e.g. name, "
+                + "gender, facility, dates).";
+        }
+        else if (!string.IsNullOrWhiteSpace(question))
         {
             try
             {
