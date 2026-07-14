@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Report Forge — Requirements Specification</title>
+<style>
+  :root{
+    --navy:#1f3864; --navy2:#2e5496; --band:#dbe5f1; --ink:#20293a; --muted:#5b6675;
+    --line:#d7dce5; --ok:#0f5132; --okbg:#eef7f1; --warn:#b02a37;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; color:var(--ink); background:#f4f6fa;
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif; line-height:1.55;
+  }
+  .page{max-width:900px;margin:0 auto;background:#fff;padding:56px 64px;
+        box-shadow:0 8px 30px rgba(31,56,100,.10);}
+  header.doc{border-bottom:3px solid var(--navy);padding-bottom:18px;margin-bottom:8px}
+  .eyebrow{letter-spacing:.16em;text-transform:uppercase;color:var(--navy2);font-weight:700;font-size:.78rem;margin:0}
+  h1{color:var(--navy);font-size:2rem;margin:.15em 0 .1em}
+  .subtitle{color:var(--muted);font-size:1.05rem;margin:.2em 0 0}
+  h2{color:var(--navy);font-size:1.3rem;margin:2em 0 .5em;padding-bottom:.25em;border-bottom:1px solid var(--line)}
+  h3{color:var(--navy2);font-size:1.05rem;margin:1.3em 0 .3em}
+  p,li{font-size:.98rem}
+  ul{padding-left:1.2em}
+  code{background:#eef2f8;border:1px solid #e0e6f0;border-radius:5px;padding:.04em .38em;font-size:.9em}
+  table{width:100%;border-collapse:collapse;margin:.6em 0;font-size:.92rem}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  thead th{background:var(--navy);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f6f8fc}
+  .req th:first-child,.req td:first-child{white-space:nowrap;font-weight:600;color:var(--navy)}
+  .pri{white-space:nowrap;font-weight:600}
+  .must{color:#b02a37}.should{color:#9a6700}.could{color:#0f5132}
+  .doc-info{width:100%;border-collapse:collapse;margin-top:14px;font-size:.9rem}
+  .doc-info td{border:1px solid var(--line);padding:6px 10px}
+  .doc-info td:first-child{background:#f0f3f9;font-weight:600;width:170px;color:var(--navy)}
+  .toc{background:#fafbfe;border:1px solid var(--line);border-radius:10px;padding:14px 22px}
+  .toc ol{margin:.2em 0}
+  .note{background:var(--okbg);border:1px solid #cfe8d8;border-radius:8px;padding:10px 14px;font-size:.92rem}
+  footer{margin-top:3em;padding-top:1em;border-top:1px solid var(--line);color:var(--muted);font-size:.82rem}
+  @media print{ body{background:#fff} .page{box-shadow:none;max-width:none;padding:0} h2{break-after:avoid} table{break-inside:auto} tr{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="doc">
+    <p class="eyebrow">Software Requirements Specification</p>
+    <h1>AI Report Forge</h1>
+    <p class="subtitle">Requirements for an AI-driven platform to replace SSRS/Crystal reporting</p>
+    <table class="doc-info">
+      <tr><td>Document</td><td>Requirements Specification (SRS / BRD)</td></tr>
+      <tr><td>Version</td><td>1.0 (baseline)</td></tr>
+      <tr><td>Status</td><td>Approved — baseline for design &amp; build</td></tr>
+      <tr><td>Date</td><td>2026-06-18</td></tr>
+      <tr><td>Author</td><td>AI Report Forge Project Team</td></tr>
+      <tr><td>Precedes</td><td>Architecture &amp; Design (2026-06-25), Implementation (Phases 1–2)</td></tr>
+    </table>
+  </header>
+
+  <div class="toc">
+    <strong>Contents</strong>
+    <ol>
+      <li>Introduction &amp; Purpose</li>
+      <li>Background &amp; Problem Statement</li>
+      <li>Goals &amp; Objectives</li>
+      <li>Stakeholders &amp; Users</li>
+      <li>Scope (In / Out)</li>
+      <li>Functional Requirements</li>
+      <li>Non-Functional Requirements</li>
+      <li>Data Requirements</li>
+      <li>Constraints &amp; Assumptions</li>
+      <li>Acceptance Criteria</li>
+      <li>Risks</li>
+      <li>Glossary</li>
+    </ol>
+  </div>
+
+  <h2>1. Introduction &amp; Purpose</h2>
+  <p>This document specifies the requirements for <strong>AI Report Forge</strong>, a proof-of-concept
+  platform intended to reduce developer dependency for routine reporting by replacing traditional
+  SSRS/Crystal Reports with an AI-assisted, web-native reporting solution. It is the baseline
+  requirements artifact and is written prior to architecture, design, and implementation; all
+  subsequent design and development decisions trace back to the requirements herein.</p>
+  <p>The requirements use MoSCoW priorities: <span class="pri must">Must</span>,
+  <span class="pri should">Should</span>, <span class="pri could">Could</span>. The keyword
+  “shall” denotes a mandatory requirement.</p>
+
+  <h2>2. Background &amp; Problem Statement</h2>
+  <p>Today, every new or changed report (SSRS <code>.rdl</code> / Crystal) requires developer effort:
+  authoring proprietary report definitions, designing layouts, configuring data sources, and deploying
+  to a report server. This creates IT backlogs, slows the business, and produces static, PDF-centric
+  output that is not web-native and cannot be self-served. Reports are also difficult to review, diff,
+  restyle, and version-control.</p>
+  <p>There is a need for a solution that (a) migrates existing reports into maintainable,
+  version-controlled artifacts with minimal manual coding, and (b) lets business users obtain reports
+  on demand — ideally by asking questions in plain language — while <strong>reusing the existing data
+  access layer</strong> and honoring healthcare data-privacy (PHI/HIPAA) obligations.</p>
+
+  <h2>3. Goals &amp; Objectives</h2>
+  <ul>
+    <li><strong>G1.</strong> Replace SSRS/Crystal for on-demand, read-only tabular and summary reports.</li>
+    <li><strong>G2.</strong> Reduce developer dependency for creating and migrating reports.</li>
+    <li><strong>G3.</strong> Let business users retrieve reports via natural-language questions.</li>
+    <li><strong>G4.</strong> Reuse the existing .NET data access layer and database — no data-layer rewrite.</li>
+    <li><strong>G5.</strong> Keep report definitions as version-controlled, reviewable web artifacts.</li>
+    <li><strong>G6.</strong> Guarantee that patient PHI never leaves the server boundary in the clear.</li>
+  </ul>
+
+  <h2>4. Stakeholders &amp; Users</h2>
+  <table>
+    <thead><tr><th>Stakeholder</th><th>Interest</th></tr></thead>
+    <tbody>
+      <tr><td>Business / clinical users</td><td>Self-serve reports on demand without raising IT tickets.</td></tr>
+      <tr><td>Report developers</td><td>Migrate and maintain reports faster; fewer manual RDL edits.</td></tr>
+      <tr><td>Application / .NET team</td><td>Integrate reporting without rewriting data access or auth.</td></tr>
+      <tr><td>Security &amp; compliance</td><td>Ensure PHI handling meets HIPAA; auditability of data access.</td></tr>
+      <tr><td>Project sponsor</td><td>Demonstrate feasibility of AI-driven reporting as a PoC.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Scope</h2>
+  <h3>5.1 In scope (PoC)</h3>
+  <ul>
+    <li>Migration of existing SSRS <code>.rdl</code> (and Crystal doc) reports to static HTML+JS report templates.</li>
+    <li>A runtime web application that serves reports populated with live data.</li>
+    <li>Natural-language question → report selection + filters, via a local LLM.</li>
+    <li>AI-generated narrative summaries (and optional chart) for report results.</li>
+    <li>PDF export and rendering of the original SSRS definitions for parity.</li>
+    <li>A database schema map and PHI classification driving decoding and anonymization.</li>
+  </ul>
+  <h3>5.2 Out of scope (PoC)</h3>
+  <ul>
+    <li>Scheduled/subscription report delivery (email), drill-down navigation, sub-report authoring UI.</li>
+    <li>Row-level security / per-user data partitioning.</li>
+    <li>Write-back or transactional operations (reporting is read-only).</li>
+    <li>Production-grade multi-tenant scaling and HA.</li>
+  </ul>
+
+  <h2>6. Functional Requirements</h2>
+
+  <h3>6.1 Report migration (build-time tooling)</h3>
+  <table class="req">
+    <thead><tr><th>ID</th><th>Requirement</th><th class="pri">Priority</th></tr></thead>
+    <tbody>
+      <tr><td>FR-1.1</td><td>The tooling shall analyze an existing report definition (SSRS <code>.rdl</code>, or its host code where the RDL is skeletal) and produce a human-reviewable analysis of its data, business logic, parameters, and layout.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-1.2</td><td>A developer shall be able to review and approve the extracted analysis <em>before</em> any report code is generated.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-1.3</td><td>The tooling shall generate a static HTML + JavaScript report template (plus documentation) equivalent to the source report.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-1.4</td><td>The tooling shall produce a database schema map and a PHI-column classification for use at runtime.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-1.5</td><td>The migration tooling shall be host-agnostic (reusable across report projects); application-specific facts shall live in a per-project context artifact.</td><td class="pri should">Should</td></tr>
+      <tr><td>FR-1.6</td><td>All generated artifacts shall be committed to version control (reviewable diffs, no report-server deploy).</td><td class="pri must">Must</td></tr>
+    </tbody>
+  </table>
+
+  <h3>6.2 Runtime reporting application</h3>
+  <table class="req">
+    <thead><tr><th>ID</th><th>Requirement</th><th class="pri">Priority</th></tr></thead>
+    <tbody>
+      <tr><td>FR-2.1</td><td>The application shall present a report catalog and allow a user to generate any available report.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-2.2</td><td>The application shall fetch report data using the existing data access layer; the report template shall not access the database directly.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-2.3</td><td>The application shall render a report by injecting the fetched data into the generated HTML template.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-2.4</td><td>The application shall reuse the existing authentication and authorization model.</td><td class="pri must">Must</td></tr>
+    </tbody>
+  </table>
+
+  <h3>6.3 Natural-language querying</h3>
+  <table class="req">
+    <thead><tr><th>ID</th><th>Requirement</th><th class="pri">Priority</th></tr></thead>
+    <tbody>
+      <tr><td>FR-3.1</td><td>The system shall let a user ask a plain-English question and route it to the correct report.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-3.2</td><td>The system shall extract structured, table-qualified filters (including cross-table conditions) from the question.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-3.3</td><td>The system shall use a database schema map so that terms are resolved to the correct table/column (e.g. a facility name vs. a patient name).</td><td class="pri should">Should</td></tr>
+      <tr><td>FR-3.4</td><td>When no report matches, the system shall return a clear “unknown / cannot answer” response rather than a fabricated result.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-3.5</td><td>Users shall also be able to select a report and set filters manually, without asking a question.</td><td class="pri should">Should</td></tr>
+    </tbody>
+  </table>
+
+  <h3>6.4 Filtering</h3>
+  <table class="req">
+    <thead><tr><th>ID</th><th>Requirement</th><th class="pri">Priority</th></tr></thead>
+    <tbody>
+      <tr><td>FR-4.1</td><td>The system shall apply report filters at the database query level (not by filtering in memory after loading all rows).</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-4.2</td><td>Only an allowlisted set of fields per report/table shall be filterable; non-reportable and sensitive contact fields shall be blocked.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-4.3</td><td>The applied filters shall be displayed to the user (echo / badges) for transparency.</td><td class="pri should">Should</td></tr>
+      <tr><td>FR-4.4</td><td>Filter definitions should be declarative so that adding/removing a filter does not require rewriting report code.</td><td class="pri could">Could</td></tr>
+    </tbody>
+  </table>
+
+  <h3>6.5 Output, summaries &amp; export</h3>
+  <table class="req">
+    <thead><tr><th>ID</th><th>Requirement</th><th class="pri">Priority</th></tr></thead>
+    <tbody>
+      <tr><td>FR-5.1</td><td>The system shall present an AI-generated narrative summary of the report results.</td><td class="pri should">Should</td></tr>
+      <tr><td>FR-5.2</td><td>The system may present an optional chart when appropriate; any chart specification shall be validated before rendering.</td><td class="pri could">Could</td></tr>
+      <tr><td>FR-5.3</td><td>The system shall allow the report to be downloaded as a PDF.</td><td class="pri must">Must</td></tr>
+      <tr><td>FR-5.4</td><td>The system should be able to render the original SSRS <code>.rdl</code> definition for side-by-side parity with the HTML report.</td><td class="pri should">Should</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7. Non-Functional Requirements</h2>
+  <table class="req">
+    <thead><tr><th>ID</th><th>Requirement</th><th class="pri">Priority</th></tr></thead>
+    <tbody>
+      <tr><td>NFR-1 · Privacy/PHI</td><td>Patient PHI shall never leave the server boundary in the clear. Any data (and the user’s question) sent to a cloud LLM shall first be anonymized (pseudonymization, age-range generalization, redaction, region-only), and real values re-mapped locally afterwards.</td><td class="pri must">Must</td></tr>
+      <tr><td>NFR-2 · Security</td><td>Reporting shall be read-only; queries shall be parameterized; the query specification passed between components shall be tamper-resistant (signed/encrypted); destructive or off-topic requests shall fail closed.</td><td class="pri must">Must</td></tr>
+      <tr><td>NFR-3 · Local-first</td><td>The primary language model shall run locally (on-device) so that routine operation requires no external network or per-call cloud cost; a cloud model may be used only as an anonymized fallback.</td><td class="pri must">Must</td></tr>
+      <tr><td>NFR-4 · Reliability</td><td>If the language model is unavailable or fails, the system shall degrade gracefully and return an honest error rather than fabricated content; manual report selection shall still work.</td><td class="pri must">Must</td></tr>
+      <tr><td>NFR-5 · Performance</td><td>Prompt decoding should complete within ~10s and data retrieval within ~5s on the target hardware; results should be capped to a safe row limit.</td><td class="pri should">Should</td></tr>
+      <tr><td>NFR-6 · Maintainability</td><td>Report definitions shall be plain, version-controlled text (HTML/JS/JSON/Markdown) that can be reviewed via normal code review.</td><td class="pri must">Must</td></tr>
+      <tr><td>NFR-7 · Licensing</td><td>Third-party libraries shall use permissive open-source licenses (e.g. MIT/Apache); revenue-gated or restrictively-licensed components shall be avoided.</td><td class="pri must">Must</td></tr>
+      <tr><td>NFR-8 · Portability</td><td>New reports shall be deployable by adding artifacts (definition + template) without rebuilding or redeploying a report server.</td><td class="pri should">Should</td></tr>
+      <tr><td>NFR-9 · Usability</td><td>The reporting UI shall be web-native, responsive, and printable.</td><td class="pri should">Should</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. Data Requirements</h2>
+  <p>The reporting domain covers a healthcare/transplant dataset. The system shall support reporting
+  over related entities including, at minimum: <strong>Patients</strong>, <strong>Facilities</strong>,
+  <strong>Providers</strong>, <strong>Transplant Events</strong>, <strong>Lab Results</strong>,
+  <strong>Diagnoses</strong>, and <strong>Medications</strong>, with their relationships (e.g. a patient
+  belongs to a facility; transplant events and diagnoses belong to a patient).</p>
+  <ul>
+    <li>Each column shall be classified as PHI or non-PHI, with an anonymization strategy for PHI columns.</li>
+    <li>Derived/calculated fields (e.g. age from date of birth, full name, BMI, risk indicators) shall be supported.</li>
+    <li>The database may be seeded with synthetic sample data for the PoC (no production PHI required).</li>
+  </ul>
+
+  <h2>9. Constraints &amp; Assumptions</h2>
+  <ul>
+    <li><strong>C1.</strong> The runtime application is an existing .NET web application; the solution must integrate with it rather than replace it.</li>
+    <li><strong>C2.</strong> Rendering the original SSRS <code>.rdl</code> requires the Microsoft ReportViewer engine, which does not run in-process on modern .NET; a separate compatibility service is assumed for that path only.</li>
+    <li><strong>C3.</strong> Target hardware is a standard corporate laptop/VDI (CPU-only, ~16&nbsp;GB RAM, no GPU); LLM choice must fit this budget.</li>
+    <li><strong>C4.</strong> Certain network ports may be restricted by corporate policy; the solution must be configurable.</li>
+    <li><strong>A1.</strong> Existing parameterized queries and connection security in the .NET app are trusted and reused.</li>
+  </ul>
+
+  <h2>10. Acceptance Criteria (Definition of Done)</h2>
+  <ul>
+    <li><strong>AC1.</strong> An existing SSRS report can be migrated to an HTML report via the tooling, with a reviewed analysis artifact, for at least 3 reports.</li>
+    <li><strong>AC2.</strong> A user can submit a plain-English question and receive the correct report, filtered accordingly, with an AI summary.</li>
+    <li><strong>AC3.</strong> Filters are demonstrably applied at the database level and change the returned rows.</li>
+    <li><strong>AC4.</strong> A report can be exported to PDF, and the original SSRS definition can be rendered for parity.</li>
+    <li><strong>AC5.</strong> When the local LLM is stopped, the system either falls back to the anonymized cloud path or fails honestly — never fabricates data, and never sends un-anonymized PHI externally.</li>
+    <li><strong>AC6.</strong> New reports can be added without modifying/rebuilding a report server.</li>
+  </ul>
+
+  <h2>11. Risks</h2>
+  <table>
+    <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>Small local LLM misinterprets questions</td><td>Schema-aware prompting; deterministic post-decode corrections; manual filter fallback.</td></tr>
+      <tr><td>PHI leakage to cloud LLM</td><td>Mandatory anonymization + local re-mapping; refuse to start without PHI markers.</td></tr>
+      <tr><td>CPU-only inference is slow</td><td>Use a small quantized model; timeouts; option to select a lighter model.</td></tr>
+      <tr><td>Legacy RDL rendering incompatible with modern .NET</td><td>Isolate RDL rendering in a compatibility service; primary path is HTML.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>12. Glossary</h2>
+  <ul>
+    <li><strong>SSRS / RDL</strong> — SQL Server Reporting Services and its Report Definition Language (XML).</li>
+    <li><strong>PHI</strong> — Protected Health Information (HIPAA).</li>
+    <li><strong>LLM</strong> — Large Language Model.</li>
+    <li><strong>Thought file</strong> — the reviewable analysis of a report’s logic produced during migration.</li>
+    <li><strong>Query spec</strong> — the structured report key + filters decoded from a natural-language question.</li>
+  </ul>
+
+  <footer>
+    AI Report Forge — Requirements Specification v1.0 (baseline). This document defines <em>what</em> the
+    system must do; the accompanying Architecture &amp; Design document defines <em>how</em>.
+  </footer>
+
+</div>
+</body>
+</html>
