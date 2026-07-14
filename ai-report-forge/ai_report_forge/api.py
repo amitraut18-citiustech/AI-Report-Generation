@@ -1,9 +1,10 @@
 import logging
+import math
 from contextlib import asynccontextmanager
 
 from ollama import Client as OllamaClient
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .claude_fallback import summarize_with_claude
 from .config import settings
@@ -53,6 +54,13 @@ class QueryFilter(BaseModel):
     operator: str = "equals"
     value: str
 
+    @field_validator("value", mode="before")
+    @classmethod
+    def coerce_value_to_str(cls, v):
+        if not isinstance(v, str):
+            return str(v)
+        return v
+
 
 class JoinSpec(BaseModel):
     table: str
@@ -87,6 +95,22 @@ class ChartSpec(BaseModel):
     title: str = ""
     labels: list[str] = []
     values: list[float | int] = []
+
+    @model_validator(mode="after")
+    def validate_chart(self):
+        # The chart spec comes from an LLM; reject shapes the frontend
+        # cannot render sensibly instead of passing them through.
+        if self.type not in ("bar", "pie", "line"):
+            raise ValueError(f"unsupported chart type: {self.type}")
+        if len(self.labels) != len(self.values):
+            raise ValueError("labels/values length mismatch")
+        if not (1 <= len(self.labels) <= 12):
+            raise ValueError("chart must have 1-12 categories")
+        if any(not math.isfinite(float(v)) for v in self.values):
+            raise ValueError("chart values must be finite numbers")
+        self.title = self.title[:120]
+        self.labels = [str(l)[:80] for l in self.labels]
+        return self
 
 
 class SummarizeResponse(BaseModel):

@@ -166,7 +166,7 @@ window.REPORT_DATA = {
       refHigh:     0.0            // double|null
     }
   ],
-  narrative: "",                // LLM-generated summary; may be empty
+  narrative: "",                // LLM-generated summary; may be empty (see Narrative Rendering below)
   meta: {
     generatedAt: "ISO-8601",    // e.g. "2026-07-13T10:00:00Z"
     executedBy:  "string",      // username
@@ -220,3 +220,13 @@ into `REPORT_DATA`. The JS never re-implements any of this filtering logic.
 - **Avg Age in Facility Summary** uses `Avg(Age)` across all detail rows in the facility
   group (matching the RDL expression), which weights patients by their number of rows
   (lab results). This matches the original SSRS behavior.
+
+## Narrative Rendering
+
+When `narrative` is non-empty, `renderNarrative()` builds a styled card:
+
+- **Header:** Dark navy bar with an SVG info icon and the label "AI Summary" (`.report__narrative-header`)
+- **Body:** The narrative text is split into paragraphs (every two sentences grouped) and rendered as `<p>` elements (`.report__narrative-body`)
+- **Chart:** If `window.REPORT_DATA.chart` is present (type, title, labels, values), a Chart.js canvas is inserted after the narrative section
+
+The narrative section is hidden when `narrative` is empty.

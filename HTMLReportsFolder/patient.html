@@ -56,12 +56,32 @@
       justify-content: space-between;
     }
     .report__narrative {
-      margin: 12px 0;
-      padding: 12px;
+      margin: 16px 0;
+      padding: 0;
       background: #f8f9fa;
-      border-left: 4px solid #1f3864;
+      border: 1px solid #e2e6ea;
+      border-radius: 6px;
+      font-size: 13px;
+      overflow: hidden;
+    }
+    .report__narrative-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: #1f3864;
+      color: #fff;
+      font-weight: 600;
       font-size: 13px;
     }
+    .report__narrative-header svg { flex-shrink: 0; }
+    .report__narrative-body {
+      padding: 14px 16px;
+      line-height: 1.6;
+      color: #333;
+    }
+    .report__narrative-body p { margin: 0 0 8px; }
+    .report__narrative-body p:last-child { margin-bottom: 0; }
     @media print {
       body { background: #fff; }
       .report { max-width: none; padding: 0; }

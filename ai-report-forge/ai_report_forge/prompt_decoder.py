@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 
 from ollama import Client as OllamaClient
 
@@ -40,9 +41,57 @@ FILTER RULES:
   add a join to Facilities and filter on table="Facilities", field="Name"
 - Do NOT use FK integer columns (FacilityId, PatientId, ProviderId) for text-based filters —
   use the related table's display fields via a join instead
-- For date filters, use ISO format values (e.g., "2026-01-01")
+- For date filters, use ISO format values (e.g., "2026-01-01"). All filter values MUST be
+  strings, even for numbers — e.g. "60" not 60
 - For boolean fields, use "true" or "false"
 - Only include filters the user explicitly asked for
+
+NAME FILTER RULES:
+- A single name like "Ethan" or "Mia" is a FIRST NAME — filter on field "FirstName"
+- A single name like "Garcia" or "Thompson" is a LAST NAME — filter on field "LastName"
+- If ambiguous, use "contains" on BOTH FirstName and LastName is NOT possible — pick the
+  most likely field. Common first names (Ethan, Mia, Noah, Ava, Liam, Sophia, Olivia, Lucas)
+  should filter on "FirstName"
+- For a full name like "Ava Patel", create TWO filters: FirstName equals "Ava" AND
+  LastName equals "Patel"
+
+GENDER RULES:
+- "female", "females", "women", "woman" → Gender equals "Female"
+- "male", "males", "men", "man" → Gender equals "Male"
+- NEVER use notEquals for gender words. "women" is Gender equals "Female",
+  NOT Gender notEquals "Female"
+
+LOCATION RULES:
+- A city name ("in Dallas", "from Houston", "Austin patients") → filter on
+  table="Facilities", field="City"
+- A full facility name ("Austin General Hospital", "Dallas Transplant Clinic")
+  → filter on table="Facilities", field="Name"
+- A 2-letter state ("in TX") → filter on table="Facilities", field="State"
+
+DATE RANGE RULES:
+- "in January 2026" means: greaterThanOrEqual "2026-01-01" AND lessThanOrEqual "2026-01-31"
+- "between January and March 2026" means: greaterThanOrEqual "2026-01-01" AND
+  lessThanOrEqual "2026-03-31"
+- "after X" ALWAYS means greaterThan (later than X). "after March 2026" →
+  greaterThan "2026-03-31". NEVER lessThan for "after"
+- "before X" ALWAYS means lessThan (earlier than X). "before February 2026" →
+  lessThan "2026-02-01". NEVER greaterThan for "before"
+- Always use the DateOfVisit field for transplant event date filters
+
+OPERATOR RULES:
+- Use "equals" when the user asks FOR something: "show autologous" → equals "Autologous"
+- Use "notEquals" ONLY when the user explicitly asks to EXCLUDE something: "exclude autologous"
+- "outpatient" means IsInpatient equals "false". "inpatient" means IsInpatient equals "true"
+- For status filters, prefer "equals" with the exact value: "inactive patients" →
+  Status equals "Inactive", NOT Status notEquals "Active"
+
+CRITICAL:
+- NEVER use placeholder values like "UNKNOWN", "<facility_id>", or "<value>" in filters.
+  If you cannot determine a filter value from the user's question, do NOT include that filter.
+- Only include filters that directly correspond to what the user asked for.
+- The "template" field must match the report key: patient → "patient.html",
+  transplant_event → "transplant_event.html",
+  patient_clinical_summary → "patient_clinical_summary.html"
 
 If no report matches, return report="UNKNOWN" with confidence=0 and empty query.
 
@@ -87,7 +136,65 @@ def decode_prompt(question: str, ctx: AppContext) -> dict:
         return _unknown_response("Ollama unavailable")
 
     raw_text = response["message"]["content"].strip()
-    return _parse_response(raw_text)
+    result = _parse_response(raw_text)
+    _sanitize_filters(question, result["query"]["filters"])
+    return result
+
+
+# Words that legitimately signal exclusion in the question. If none of these
+# appear, a notEquals filter on Gender is almost certainly an inversion error
+# by the small local model (e.g. "women" -> Gender notEquals "Female").
+_EXCLUSION_RE = re.compile(r"\b(exclude|excluding|except|not|non|other than|without)\b", re.IGNORECASE)
+
+# Tokens that indicate a value is a full facility name rather than a city.
+_FACILITY_NAME_RE = re.compile(r"\b(hospital|clinic|center|centre|medical)\b", re.IGNORECASE)
+
+# Fields the model sometimes hallucinates filters for, and the question words
+# that would legitimately justify such a filter.
+_JUSTIFICATION_RES = {
+    "isinpatient": re.compile(r"\b(inpatient|outpatient|admitted|admission|hospitali[sz]ed)\b", re.IGNORECASE),
+    "status": re.compile(r"\b(active|inactive|status)\b", re.IGNORECASE),
+}
+
+
+def _sanitize_filters(question: str, filters: list[dict]) -> None:
+    """Deterministic corrections for known small-model decode errors.
+
+    The 3B decoder occasionally inverts gender filters ("women" ->
+    notEquals Female), puts bare city names into Facilities.Name, and
+    hallucinates filters the user never asked for (e.g. IsInpatient).
+    These fixes are conservative: they only fire when the question text
+    clearly contradicts the decoded filter.
+    """
+    # Drop hallucinated filters: fields whose presence requires a specific
+    # word in the question ("inpatient", "active", ...) that isn't there.
+    for f in list(filters):
+        justification = _JUSTIFICATION_RES.get(f["field"].lower())
+        if justification and not justification.search(question):
+            log.info("Dropped unjustified filter: %s.%s %s %s",
+                     f["table"], f["field"], f["operator"], f["value"])
+            filters.remove(f)
+
+    for f in filters:
+        # Gender inversion: notEquals without any exclusion word in the question.
+        if (
+            f["field"].lower() == "gender"
+            and f["operator"] == "notEquals"
+            and not _EXCLUSION_RE.search(question)
+        ):
+            log.info("Sanitized gender filter: notEquals -> equals ('%s')", f["value"])
+            f["operator"] = "equals"
+
+        # City-in-Name: a single-word Facilities.Name value with no facility
+        # keyword is a city, not a facility name.
+        if (
+            f["table"].lower() == "facilities"
+            and f["field"].lower() == "name"
+            and " " not in f["value"].strip()
+            and not _FACILITY_NAME_RE.search(f["value"])
+        ):
+            log.info("Sanitized facility filter: Name -> City ('%s')", f["value"])
+            f["field"] = "City"
 
 
 def _parse_response(raw: str) -> dict:
@@ -124,10 +231,15 @@ def _parse_response(raw: str) -> dict:
     filters = query.get("filters", [])
     if not isinstance(filters, list):
         filters = []
-    valid_filters = [
-        f for f in filters
-        if isinstance(f, dict) and "table" in f and "field" in f and "operator" in f and "value" in f
-    ]
+    valid_filters = []
+    for f in filters:
+        if not (isinstance(f, dict) and "table" in f and "field" in f and "operator" in f and "value" in f):
+            continue
+        if _is_placeholder(f["value"]):
+            log.info("Stripped placeholder filter: %s.%s = %s", f["table"], f["field"], f["value"])
+            continue
+        f["value"] = str(f["value"])
+        valid_filters.append(f)
 
     return {
         "report": report,
@@ -140,6 +252,14 @@ def _parse_response(raw: str) -> dict:
         "template": parsed.get("template"),
         "confidence": float(confidence),
     }
+
+
+_PLACEHOLDER_RE = re.compile(r"^<.*>$|^UNKNOWN$|^null$|^undefined$|^N/A$", re.IGNORECASE)
+
+
+def _is_placeholder(value) -> bool:
+    s = str(value).strip()
+    return bool(_PLACEHOLDER_RE.match(s)) or not s
 
 
 def _unknown_response(message: str) -> dict:

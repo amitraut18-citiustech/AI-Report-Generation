@@ -28,6 +28,127 @@ public class ReportQueryService
         ["LabResults"] = new() { ["TransplantEvents"] = "TransplantEvent" },
     };
 
+    // 2-hop navigation: primary table → target table → [nav1, nav2]
+    // e.g. TransplantEvents → Facilities goes through Patient.Facility
+    private static readonly Dictionary<string, Dictionary<string, string[]>> ChainedNavMap = new()
+    {
+        ["TransplantEvents"] = new() { ["Facilities"] = new[] { "Patient", "Facility" } },
+        ["LabResults"] = new() { ["Patients"] = new[] { "TransplantEvent", "Patient" } },
+        ["Diagnoses"] = new() { ["Facilities"] = new[] { "Patient", "Facility" } },
+        ["Medications"] = new() { ["Facilities"] = new[] { "Patient", "Facility" } },
+    };
+
+    // Per-table allowlist of fields a brain-generated (or user-supplied) spec
+    // may filter on. Reflection-based predicate building would otherwise allow
+    // probing any entity property — including PHI contact fields — via
+    // contains/range filters. Keys and values are case-insensitive.
+    private static readonly Dictionary<string, HashSet<string>> FilterableFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Patients"] = new(StringComparer.OrdinalIgnoreCase)
+            { "FirstName", "LastName", "Gender", "DateOfBirth", "Status", "HeightCm", "WeightKg" },
+        ["Facilities"] = new(StringComparer.OrdinalIgnoreCase)
+            { "Name", "City", "State", "FacilityType", "IsActive" },
+        ["TransplantEvents"] = new(StringComparer.OrdinalIgnoreCase)
+            { "DateOfVisit", "DateOfPreviousVisit", "TransplantDate", "InfusionDate",
+              "DischargeDate", "EventId", "TransplantNumber", "IsInpatient", "DonorType" },
+        ["Providers"] = new(StringComparer.OrdinalIgnoreCase)
+            { "FirstName", "LastName", "Specialty" },
+        ["Diagnoses"] = new(StringComparer.OrdinalIgnoreCase)
+            { "IcdCode", "Description", "Severity", "DiagnosedDate" },
+        ["Medications"] = new(StringComparer.OrdinalIgnoreCase)
+            { "Name", "Dosage", "Frequency", "StartDate", "EndDate", "IsActive" },
+        ["LabResults"] = new(StringComparer.OrdinalIgnoreCase)
+            { "TestName", "Value", "Unit", "TakenDate" },
+    };
+
+    private static bool IsFilterableField(string table, string field)
+    {
+        return FilterableFields.TryGetValue(table, out var fields) && fields.Contains(field);
+    }
+
+    // The clinical summary report is built from denormalized ClinicalFlatRow
+    // objects, so brain filters (table-qualified) are applied in memory by
+    // mapping each Table.Field onto the corresponding flat-row property.
+    // This map is also the allowlist for the clinical report.
+    private static readonly Dictionary<string, string> ClinicalFieldMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Patients.Gender"] = nameof(ClinicalFlatRow.Gender),
+        ["Patients.Status"] = nameof(ClinicalFlatRow.Status),
+        ["Patients.DateOfBirth"] = nameof(ClinicalFlatRow.DateOfBirth),
+        ["Patients.FirstName"] = nameof(ClinicalFlatRow.PatientName),
+        ["Patients.LastName"] = nameof(ClinicalFlatRow.PatientName),
+        ["Facilities.Name"] = nameof(ClinicalFlatRow.FacilityName),
+        ["Facilities.City"] = nameof(ClinicalFlatRow.FacilityCity),
+        ["Facilities.State"] = nameof(ClinicalFlatRow.FacilityState),
+        ["TransplantEvents.DateOfVisit"] = nameof(ClinicalFlatRow.DateOfVisit),
+        ["TransplantEvents.DateOfPreviousVisit"] = nameof(ClinicalFlatRow.DateOfPreviousVisit),
+        ["TransplantEvents.DonorType"] = nameof(ClinicalFlatRow.DonorType),
+        ["TransplantEvents.IsInpatient"] = nameof(ClinicalFlatRow.IsInpatient),
+        ["TransplantEvents.EventId"] = nameof(ClinicalFlatRow.EventId),
+        ["Providers.FirstName"] = nameof(ClinicalFlatRow.ProviderName),
+        ["Providers.LastName"] = nameof(ClinicalFlatRow.ProviderName),
+        ["Providers.Specialty"] = nameof(ClinicalFlatRow.Specialty),
+        ["LabResults.TestName"] = nameof(ClinicalFlatRow.LabTestName),
+        ["LabResults.Value"] = nameof(ClinicalFlatRow.LabValue),
+    };
+
+    // Combined-name columns: a FirstName/LastName equals-filter must match as
+    // a substring of "First Last" rather than the whole string.
+    private static readonly HashSet<string> CombinedNameProps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        nameof(ClinicalFlatRow.PatientName), nameof(ClinicalFlatRow.ProviderName)
+    };
+
+    /// <summary>
+    /// Applies brain-decoded filters to the denormalized clinical rows in memory.
+    /// Unknown or unsupported filters are marked skipped and ignored (AND-only).
+    /// </summary>
+    public List<ClinicalFlatRow> FilterClinicalRows(List<ClinicalFlatRow> rows, QuerySpec spec)
+    {
+        if (spec.Filters.Count == 0)
+            return rows;
+
+        IEnumerable<ClinicalFlatRow> result = rows;
+
+        foreach (var filter in spec.Filters)
+        {
+            if (!AllowedOperators.Contains(filter.Operator))
+            {
+                filter.Status = "skipped";
+                _logger.LogWarning("Clinical filter skipped: disallowed operator '{Op}'", filter.Operator);
+                continue;
+            }
+
+            if (!ClinicalFieldMap.TryGetValue($"{filter.Table}.{filter.Field}", out var prop))
+            {
+                filter.Status = "skipped";
+                _logger.LogWarning("Clinical filter skipped: no mapping for {Table}.{Field}",
+                    filter.Table, filter.Field);
+                continue;
+            }
+
+            var op = filter.Operator;
+            // First/last name filters target a combined "First Last" column;
+            // degrade equals to a case-insensitive substring match.
+            if (CombinedNameProps.Contains(prop) && op.Equals("equals", StringComparison.OrdinalIgnoreCase))
+                op = "contains";
+
+            var predicate = BuildPredicate<ClinicalFlatRow>(typeof(ClinicalFlatRow), prop, op, filter.Value);
+            if (predicate == null)
+            {
+                filter.Status = "skipped";
+                _logger.LogWarning("Clinical filter skipped: could not build predicate for {Prop} {Op}",
+                    prop, filter.Operator);
+                continue;
+            }
+
+            result = result.Where(predicate.Compile());
+            filter.Status = "applied";
+        }
+
+        return result.ToList();
+    }
+
     // Operators that are not meaningful for string comparisons. If the brain
     // emits greaterThan/lessThan for a string field, the filter is skipped
     // rather than silently degraded to equals.
@@ -79,6 +200,7 @@ public class ReportQueryService
                 InfusionDate = e.InfusionDate,
                 EventId = e.EventId,
                 TransplantNumber = e.TransplantNumber,
+                DonorType = e.DonorType,
                 IsInpatient = e.IsInpatient ? "Yes" : "No"
             })
             .OrderBy(e => e.DateOfVisit)
@@ -98,6 +220,14 @@ public class ReportQueryService
             {
                 filter.Status = "skipped";
                 _logger.LogWarning("Skipping filter: disallowed operator '{Op}'", filter.Operator);
+                continue;
+            }
+
+            if (!IsFilterableField(filter.Table, filter.Field))
+            {
+                filter.Status = "skipped";
+                _logger.LogWarning("Skipping filter: field {Table}.{Field} is not filterable",
+                    filter.Table, filter.Field);
                 continue;
             }
 
@@ -121,24 +251,44 @@ public class ReportQueryService
                 else
                 {
                     var navProp = ResolveNavProperty(primaryTable, filter.Table);
-                    if (navProp == null)
+                    if (navProp != null)
                     {
-                        filter.Status = "skipped";
-                        _logger.LogWarning("No navigation from {Primary} to {Target}", primaryTable, filter.Table);
-                        continue;
-                    }
-
-                    var predicate = BuildNavPredicate<T>(entityType, navProp, filter.Field, filter.Operator, filter.Value);
-                    if (predicate != null)
-                    {
-                        query = query.Where(predicate);
-                        filter.Status = "applied";
+                        var predicate = BuildNavPredicate<T>(entityType, navProp, filter.Field, filter.Operator, filter.Value);
+                        if (predicate != null)
+                        {
+                            query = query.Where(predicate);
+                            filter.Status = "applied";
+                        }
+                        else
+                        {
+                            filter.Status = "skipped";
+                            _logger.LogWarning("Could not build nav predicate for {Nav}.{Field} {Op}",
+                                navProp, filter.Field, filter.Operator);
+                        }
                     }
                     else
                     {
-                        filter.Status = "skipped";
-                        _logger.LogWarning("Could not build nav predicate for {Nav}.{Field} {Op}",
-                            navProp, filter.Field, filter.Operator);
+                        var chain = ResolveChainedNav(primaryTable, filter.Table);
+                        if (chain != null)
+                        {
+                            var predicate = BuildChainedNavPredicate<T>(entityType, chain, filter.Field, filter.Operator, filter.Value);
+                            if (predicate != null)
+                            {
+                                query = query.Where(predicate);
+                                filter.Status = "applied";
+                            }
+                            else
+                            {
+                                filter.Status = "skipped";
+                                _logger.LogWarning("Could not build chained nav predicate for {Chain}.{Field} {Op}",
+                                    string.Join(".", chain), filter.Field, filter.Operator);
+                            }
+                        }
+                        else
+                        {
+                            filter.Status = "skipped";
+                            _logger.LogWarning("No navigation from {Primary} to {Target}", primaryTable, filter.Table);
+                        }
                     }
                 }
             }
@@ -161,6 +311,14 @@ public class ReportQueryService
         return null;
     }
 
+    private static string[]? ResolveChainedNav(string primaryTable, string targetTable)
+    {
+        if (ChainedNavMap.TryGetValue(primaryTable, out var chains) &&
+            chains.TryGetValue(targetTable, out var chain))
+            return chain;
+        return null;
+    }
+
     private static Expression<Func<T, bool>>? BuildPredicate<T>(
         Type entityType, string fieldName, string op, string value)
     {
@@ -171,6 +329,30 @@ public class ReportQueryService
         var param = Expression.Parameter(typeof(T), "x");
         var member = Expression.Property(param, property);
         return BuildComparison<T>(param, member, property.PropertyType, op, value);
+    }
+
+    private static Expression<Func<T, bool>>? BuildChainedNavPredicate<T>(
+        Type entityType, string[] chain, string fieldName, string op, string value)
+    {
+        var param = Expression.Parameter(typeof(T), "x");
+        Expression current = param;
+        var currentType = entityType;
+
+        foreach (var navName in chain)
+        {
+            var prop = currentType.GetProperty(navName,
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (prop == null) return null;
+            current = Expression.Property(current, prop);
+            currentType = prop.PropertyType;
+        }
+
+        var targetProp = currentType.GetProperty(fieldName,
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        if (targetProp == null) return null;
+
+        var member = Expression.Property(current, targetProp);
+        return BuildComparison<T>(param, member, targetProp.PropertyType, op, value);
     }
 
     private static Expression<Func<T, bool>>? BuildNavPredicate<T>(

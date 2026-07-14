@@ -92,9 +92,10 @@ Open http://localhost:5282/Reports/HtmlReports
 ```bash
 cd ai-report-forge
 python -m pytest tests/ -v
-# Expected: 35 passed
+# Expected: 44 passed
 ```
 
 ## More detail
 
-See the full runbook: `.claude/plan/runbook-ai-report-forge-poc.md`
+- Full runbook: [docs/runbook-ai-report-forge-poc.md](runbook-ai-report-forge-poc.md)
+- NLP query reference: [docs/NLP-Query-Reference.md](NLP-Query-Reference.md)

@@ -11,23 +11,50 @@ log = logging.getLogger(__name__)
 # patient names and provider names produce distinguishable tokens.
 _COLUMN_PREFIX_MAP: dict[str, str] = {
     "providername": "Provider",
-    "providerFirstName": "Provider",
-    "providerLastName": "Provider",
+    "providerfirstname": "Provider",
+    "providerlastname": "Provider",
 }
 
-# Columns on the Providers table always get the Provider prefix.
-_PROVIDER_TABLE_COLUMNS = {"FirstName", "LastName", "NPI"}
+# Columns on the Providers table always get the Provider prefix (compared
+# case-insensitively).
+_PROVIDER_TABLE_COLUMNS = {"firstname", "lastname", "npi"}
+
+# Safety net: columns that look like direct identifiers are anonymized even
+# when no explicit strategy is configured for them. The .NET client sends
+# camelCase keys and viewmodels grow new columns over time, so relying only on
+# phi-markers.json being complete is not safe for cloud LLM calls.
+# Matches whole column names only, so e.g. "facilityName" is NOT caught.
+_FALLBACK_PSEUDONYMIZE_RE = _re.compile(
+    r"^(first|last|patient|provider|full)name$", _re.IGNORECASE
+)
+_FALLBACK_REDACT_RE = _re.compile(
+    r"^(email(address)?|phone(number)?|contact(number)?|mrn|npi|ssn|address(line\d*)?)$",
+    _re.IGNORECASE,
+)
+_FALLBACK_AGE_RANGE_RE = _re.compile(
+    r"^(dateofbirth|dob|birthdate)$", _re.IGNORECASE
+)
 
 
 def _resolve_prefix(column: str, table: str) -> str:
     """Determine the pseudonym prefix based on column name and source table."""
     col_lower = column.lower()
-    for key, prefix in _COLUMN_PREFIX_MAP.items():
-        if key.lower() == col_lower:
-            return prefix
-    if table == "Providers" and column in _PROVIDER_TABLE_COLUMNS:
+    prefix = _COLUMN_PREFIX_MAP.get(col_lower)
+    if prefix:
+        return prefix
+    if table == "Providers" and col_lower in _PROVIDER_TABLE_COLUMNS:
         return "Provider"
     return "Patient"
+
+
+def _fallback_strategy(column: str) -> str | None:
+    if _FALLBACK_PSEUDONYMIZE_RE.match(column):
+        return "pseudonymize"
+    if _FALLBACK_REDACT_RE.match(column):
+        return "redact"
+    if _FALLBACK_AGE_RANGE_RE.match(column):
+        return "age_range"
+    return None
 
 
 @dataclass
@@ -45,8 +72,9 @@ class Anonymizer:
         strategies = self._phi.strategies_for_table(table)
         vm_strategies = self._phi.strategies_for_table("_viewmodel")
         strategies = {**strategies, **vm_strategies}
-        if not strategies:
-            return AnonymizationResult(anonymized_rows=rows)
+        # Case-insensitive lookup: the .NET client serializes row keys in
+        # camelCase while phi-markers.json uses PascalCase.
+        strategies_ci = {col.lower(): strat for col, strat in strategies.items()}
 
         self._counters.clear()
         mapping: dict[str, dict[str, str]] = {}
@@ -55,7 +83,7 @@ class Anonymizer:
         for row in rows:
             new_row = {}
             for col, value in row.items():
-                strategy = strategies.get(col)
+                strategy = strategies_ci.get(col.lower()) or _fallback_strategy(col)
                 if strategy and value is not None:
                     anon_value = self._apply_strategy(
                         strategy, col, value, mapping, table
@@ -162,5 +190,33 @@ def remap_narrative(narrative: str, mapping: dict) -> str:
     result = narrative
     for pseudonym, original in replacements:
         pattern = _re.compile(r"(?<![_\w])" + _re.escape(pseudonym) + r"(?![_\w])")
-        result = pattern.sub(original, result)
+        # Callable replacement so backslashes/group refs in the original
+        # value are inserted literally instead of being interpreted by re.sub.
+        result = pattern.sub(lambda _m, o=original: o, result)
+    return result
+
+
+def scrub_text(text: str, mapping: dict) -> str:
+    """Replace known PHI values appearing in free text with their pseudonyms.
+
+    Used to sanitize the user's question before it is embedded in an LLM
+    prompt (e.g. "show me John Smith's visits" -> "show me Patient_001
+    Patient_002's visits"). Only values already present in the anonymization
+    mapping are replaced; matching is case-insensitive and word-bounded.
+    Values shorter than 3 characters are skipped to avoid mangling the text.
+    """
+    replacements: list[tuple[str, str]] = []
+    for _strategy_key, value_map in mapping.items():
+        for original, pseudonym in value_map.items():
+            if len(str(original)) >= 3:
+                replacements.append((str(original), pseudonym))
+
+    replacements.sort(key=lambda pair: len(pair[0]), reverse=True)
+
+    result = text
+    for original, pseudonym in replacements:
+        pattern = _re.compile(
+            r"(?<![\w])" + _re.escape(original) + r"(?![\w])", _re.IGNORECASE
+        )
+        result = pattern.sub(lambda _m, p=pseudonym: p, result)
     return result

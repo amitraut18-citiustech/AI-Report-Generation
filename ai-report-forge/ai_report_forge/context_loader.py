@@ -159,7 +159,7 @@ def _extract_table_rows(text: str, section_header: str) -> list[dict]:
 def load_context() -> AppContext:
     ctx = AppContext()
 
-    thoughts_dir = settings.report_thoughts_path
+    thoughts_dir = settings.resolve(settings.report_thoughts_path)
     if thoughts_dir.is_dir():
         for path in sorted(thoughts_dir.glob("*.thought.md")):
             entry = _parse_thought_file(path)
@@ -169,20 +169,24 @@ def load_context() -> AppContext:
     else:
         log.warning("ReportThoughts directory not found: %s", thoughts_dir)
 
-    schema_path = settings.schema_mapping_path
-    if schema_path.is_file():
-        data = json.loads(schema_path.read_text(encoding="utf-8"))
-        ctx.schema = SchemaContext(raw=data, tables=data.get("tables", []))
-        log.info("Loaded schema mapping: %d tables", len(ctx.schema.tables))
-    else:
-        log.warning("Schema mapping not found: %s", schema_path)
+    # Schema mapping and PHI markers are safety-critical: without the PHI
+    # markers the anonymizer is a no-op and raw PHI would reach the LLMs.
+    # Refuse to start rather than degrade silently.
+    schema_path = settings.resolve(settings.schema_mapping_path)
+    if not schema_path.is_file():
+        raise RuntimeError(f"Schema mapping not found: {schema_path}")
+    data = json.loads(schema_path.read_text(encoding="utf-8"))
+    ctx.schema = SchemaContext(raw=data, tables=data.get("tables", []))
+    log.info("Loaded schema mapping: %d tables", len(ctx.schema.tables))
 
-    phi_path = settings.phi_markers_path
-    if phi_path.is_file():
-        data = json.loads(phi_path.read_text(encoding="utf-8"))
-        ctx.phi = PhiMarkers(raw=data, columns=data.get("phiColumns", []))
-        log.info("Loaded PHI markers: %d columns", len(ctx.phi.columns))
-    else:
-        log.warning("PHI markers not found: %s", phi_path)
+    phi_path = settings.resolve(settings.phi_markers_path)
+    if not phi_path.is_file():
+        raise RuntimeError(f"PHI markers not found: {phi_path}")
+    data = json.loads(phi_path.read_text(encoding="utf-8"))
+    columns = data.get("phiColumns", [])
+    if not columns:
+        raise RuntimeError(f"PHI markers file is empty: {phi_path}")
+    ctx.phi = PhiMarkers(raw=data, columns=columns)
+    log.info("Loaded PHI markers: %d columns", len(ctx.phi.columns))
 
     return ctx

@@ -95,3 +95,53 @@ def test_decode_handles_ollama_failure(MockClient):
     assert result["report"] == "UNKNOWN"
     assert "message" in result
     assert result["query"]["filters"] == []
+
+
+# --- filter sanitization guardrails (small-model decode corrections) ---
+from ai_report_forge.prompt_decoder import _sanitize_filters
+
+
+def test_sanitize_flips_inverted_gender_filter():
+    filters = [{"table": "Patients", "field": "Gender", "operator": "notEquals", "value": "Female"}]
+    _sanitize_filters("Which of our patients are women?", filters)
+    assert filters[0]["operator"] == "equals"
+
+
+def test_sanitize_keeps_explicit_exclusion():
+    filters = [{"table": "Patients", "field": "Gender", "operator": "notEquals", "value": "Female"}]
+    _sanitize_filters("show all patients except female ones", filters)
+    assert filters[0]["operator"] == "notEquals"
+
+
+def test_sanitize_moves_bare_city_to_city_field():
+    filters = [{"table": "Facilities", "field": "Name", "operator": "equals", "value": "Dallas"}]
+    _sanitize_filters("clinical summary for patients in Dallas", filters)
+    assert filters[0]["field"] == "City"
+
+
+def test_sanitize_keeps_full_facility_name():
+    filters = [{"table": "Facilities", "field": "Name", "operator": "equals", "value": "Austin General Hospital"}]
+    _sanitize_filters("patients from Austin General Hospital", filters)
+    assert filters[0]["field"] == "Name"
+
+
+def test_sanitize_drops_hallucinated_inpatient_filter():
+    filters = [
+        {"table": "TransplantEvents", "field": "IsInpatient", "operator": "equals", "value": "false"},
+        {"table": "TransplantEvents", "field": "DonorType", "operator": "notEquals", "value": "Autologous"},
+    ]
+    _sanitize_filters("exclude autologous transplant events", filters)
+    assert len(filters) == 1
+    assert filters[0]["field"] == "DonorType"
+
+
+def test_sanitize_keeps_justified_inpatient_filter():
+    filters = [{"table": "TransplantEvents", "field": "IsInpatient", "operator": "equals", "value": "false"}]
+    _sanitize_filters("show outpatient transplant events", filters)
+    assert len(filters) == 1
+
+
+def test_sanitize_keeps_justified_status_filter():
+    filters = [{"table": "Patients", "field": "Status", "operator": "equals", "value": "Inactive"}]
+    _sanitize_filters("show me inactive patients", filters)
+    assert len(filters) == 1

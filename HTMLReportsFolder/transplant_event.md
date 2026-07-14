@@ -58,7 +58,7 @@ window.REPORT_DATA = {
       isInpatient: "Yes"
     }
   ],
-  narrative: "",
+  narrative: "",              // LLM-generated summary; may be empty (see Narrative Rendering below)
   meta: {
     generatedAt: "2026-07-13T10:00:00Z",
     executedBy: "jdoe",
@@ -83,6 +83,16 @@ Note: `totalTransplants` is **not** a row field. The JS computes it by grouping 
 | EventId | eventId | Direct |
 | TransplantNumber | transplantNumber | Direct |
 | IsInpatient | isInpatient | Derived: bool -> "Yes"/"No" |
+
+## Narrative Rendering
+
+When `narrative` is non-empty, `renderNarrative()` builds a styled card:
+
+- **Header:** Dark navy bar with an SVG info icon and the label "AI Summary" (`.report__narrative-header`)
+- **Body:** The narrative text is split into paragraphs (every two sentences grouped) and rendered as `<p>` elements (`.report__narrative-body`)
+- **Chart:** If `window.REPORT_DATA.chart` is present (type, title, labels, values), a Chart.js canvas is inserted after the narrative section
+
+The narrative section is hidden when `narrative` is empty.
 
 ## Deviations from Source
 
