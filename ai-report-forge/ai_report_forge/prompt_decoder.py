@@ -130,6 +130,7 @@ def decode_prompt(question: str, ctx: AppContext) -> dict:
                 {"role": "user", "content": question},
             ],
             options={"temperature": 0.1},
+            keep_alive=settings.ollama_keep_alive,
         )
     except Exception:
         log.exception("Ollama call failed during prompt decoding")
