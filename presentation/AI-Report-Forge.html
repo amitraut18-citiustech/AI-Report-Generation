@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Report Migrator Plugin</title>
+<style>
+  :root{
+    --navy:#1f3864; --navy2:#2e5496; --band:#dbe5f1; --ink:#1b2330; --muted:#5b6675;
+    --paper:#ffffff; --bg:#eef1f6; --accent:#0f766e; --accent2:#b02a37; --ok:#0f5132;
+    --line:#d7dce5; --radius:14px; --shadow:0 10px 30px rgba(31,56,100,.12);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    background:linear-gradient(135deg,#e8edf5,#f6f8fb);
+    color:var(--ink); -webkit-font-smoothing:antialiased;
+  }
+  .deck{height:100vh;display:flex;flex-direction:column}
+  .progress{height:4px;background:transparent}
+  .progress > span{display:block;height:100%;background:linear-gradient(90deg,var(--navy),var(--accent));transition:width .35s ease}
+
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:28px;overflow:hidden}
+  .slide{
+    display:none;width:min(1040px,96vw);max-height:100%;overflow:auto;
+    background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:40px 46px;animation:fade .35s ease}
+  .slide.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .kicker{font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--navy2);font-weight:700;margin:0 0 6px}
+  h1{font-size:clamp(1.6rem,3.4vw,2.5rem);line-height:1.1;margin:.1em 0 .3em;color:var(--navy)}
+  h2{font-size:clamp(1.3rem,2.6vw,1.9rem);margin:0 0 .5em;color:var(--navy)}
+  p{font-size:1.02rem;line-height:1.55;color:var(--ink)}
+  .lead{font-size:1.12rem;color:var(--muted)}
+  ul{margin:.4em 0;padding-left:1.15em}
+  li{margin:.42em 0;line-height:1.5}
+  b,strong{color:var(--navy)}
+  code{background:#eef2f8;border:1px solid #e0e6f0;border-radius:6px;padding:.05em .4em;font-size:.92em;color:#213}
+  .muted{color:var(--muted)}
+  .small{font-size:.92rem}
+
+  .grid{display:grid;gap:16px}
+  .grid.two{grid-template-columns:1fr 1fr}
+  .grid.three{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:760px){.grid.two,.grid.three{grid-template-columns:1fr}}
+  .card{background:#fafbfe;border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .card h3{margin:.1em 0 .35em;color:var(--navy);font-size:1.05rem}
+  .card.warn{background:#fdf3f3;border-color:#f3d6d6}
+  .card.good{background:#eef7f1;border-color:#cfe8d8}
+  .tag{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+       padding:.18em .6em;border-radius:999px;background:var(--band);color:var(--navy);margin-bottom:8px}
+
+  .flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;margin-top:10px}
+  .step{flex:1 1 150px;background:#fafbfe;border:1px solid var(--line);border-left:4px solid var(--navy2);
+        border-radius:10px;padding:12px 14px;min-width:150px}
+  .step .n{font-size:.72rem;font-weight:700;color:var(--navy2);letter-spacing:.08em}
+  .step b{display:block;margin:.15em 0}
+  .arrow{align-self:center;color:var(--navy2);font-size:1.4rem;font-weight:800}
+  .review{border-left-color:var(--accent);}
+  .review .n{color:var(--accent)}
+
+  table{width:100%;border-collapse:collapse;font-size:.95rem}
+  th,td{text-align:left;padding:9px 11px;border:1px solid var(--line);vertical-align:top}
+  thead th{background:var(--navy);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f6f8fc}
+
+  .tree{font-family:"Cascadia Code",Consolas,"Courier New",monospace;font-size:.95rem;line-height:1.65;
+        background:#0f1b2d;color:#e7eefb;border-radius:12px;padding:18px 22px;
+        white-space:pre;overflow-x:auto;tab-size:2}
+  .tree .c{color:#9fb2d4}
+  .tree .f{color:#8fe3d1;font-weight:600}
+
+  .cover{text-align:center;background:radial-gradient(1200px 500px at 50% -10%,#2e5496 0%,#1f3864 55%,#152845 100%);color:#eaf0fb;border:none}
+  .cover h1{color:#fff;font-size:clamp(2rem,5vw,3.2rem)}
+  .cover .lead{color:#c7d4ee}
+  .cover .pill{display:inline-block;margin-top:14px;padding:.4em 1em;border:1px solid rgba(255,255,255,.3);border-radius:999px;font-size:.85rem;letter-spacing:.06em}
+
+  /* nav */
+  .nav{display:flex;align-items:center;justify-content:center;gap:18px;padding:14px;background:rgba(255,255,255,.7);
+       border-top:1px solid var(--line);backdrop-filter:blur(6px)}
+  .nav button{
+    appearance:none;border:1px solid var(--navy);background:var(--navy);color:#fff;font-size:.98rem;font-weight:600;
+    padding:.5em 1.2em;border-radius:10px;cursor:pointer;transition:transform .08s,opacity .2s}
+  .nav button:hover{transform:translateY(-1px)}
+  .nav button:disabled{opacity:.35;cursor:not-allowed;transform:none}
+  .counter{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:600;min-width:78px;text-align:center}
+  .hint{position:fixed;right:14px;bottom:70px;font-size:.78rem;color:var(--muted)}
+  @media print{.nav,.progress,.hint{display:none}.slide{display:block!important;page-break-after:always;box-shadow:none;margin:0 auto 20px}}
+</style>
+</head>
+<body>
+<div class="deck">
+  <div class="progress"><span id="bar"></span></div>
+
+  <div class="stage" id="stage">
+
+    <!-- 1 COVER -->
+    <section class="slide cover active">
+      <p class="kicker" style="color:#9fb4dd">AI Report Forge</p>
+      <h1>Report Migrator Plugin</h1>
+      <p class="lead"><b style="color:#fff">Phase 1</b> migrates legacy SSRS reports to web-native HTML with a Claude Code plugin. <b style="color:#fff">Phase 2</b> serves them at runtime with natural-language querying and a local LLM.</p>
+      <span class="pill">Phase 1: Problem → SSRS pain → HTML → Plugin → Migration &nbsp;·&nbsp; Phase 2: Runtime → NL query → Brain → PHI safety</span>
+    </section>
+
+    <!-- 2 PROBLEM -->
+    <section class="slide">
+      <span class="tag">01 · Problem statement</span>
+      <h2>Reporting depends on developers &amp; a report server</h2>
+      <p class="lead">Every new or changed report is an IT ticket.</p>
+      <div class="grid two">
+        <div class="card">
+          <h3>Today</h3>
+          <ul>
+            <li>SSRS / Crystal reports authored as <b>proprietary RDL</b> by developers.</li>
+            <li>Layout, data source, deploy to a <b>report server</b> for each report.</li>
+            <li>Reports are <b>static snapshots</b>, PDF-centric.</li>
+            <li>Change cycle is slow; business users can't self-serve.</li>
+          </ul>
+        </div>
+        <div class="card good">
+          <h3>Goal</h3>
+          <ul>
+            <li>Replace SSRS for on-demand, read-only <b>tabular/summary</b> reports.</li>
+            <li>Reports become <b>static HTML + JS</b> in source control.</li>
+            <li><b>Reuse the existing .NET data layer</b> — no data rewrite.</li>
+            <li>An <b>AI plugin</b> migrates existing reports automatically.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 SSRS ISSUES -->
+    <section class="slide">
+      <span class="tag">02 · Why SSRS hurts</span>
+      <h2>Issues with SSRS reports</h2>
+      <div class="grid two">
+        <div class="card warn">
+          <h3>Runtime &amp; infra</h3>
+          <ul>
+            <li>Needs an <b>SSRS server</b> or the ReportViewer engine.</li>
+            <li>ReportViewer <b>can't run in-process on .NET 8</b> (depends on the .NET Framework <code>vbc.exe</code>) — a separate <b>.NET Framework 4.8 side-service</b> is needed just to render RDL.</li>
+            <li>Licensing + server + tooling overhead.</li>
+          </ul>
+        </div>
+        <div class="card warn">
+          <h3>Authoring &amp; output</h3>
+          <ul>
+            <li>RDL is <b>verbose XML</b> — hard to diff, review, or restyle; needs Report Builder / Visual Studio.</li>
+            <li>Fragile coupling (e.g. a parameter must have a matching layout cell or the RDL is rejected).</li>
+            <li>Output is <b>PDF-like</b>: not responsive, not web-native, limited interactivity.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 HTML SOLUTION -->
+    <section class="slide">
+      <span class="tag">03 · Solution</span>
+      <h2>HTML-based reports</h2>
+      <p class="lead">Self-contained HTML + JS templates that render from an injected data object — the host app owns the data, the template just renders.</p>
+      <div class="grid three">
+        <div class="card"><h3>Web-native</h3><p class="small">Responsive, styleable, printable, with <b>interactive filters</b>. No report server needed.</p></div>
+        <div class="card"><h3>Data contract</h3><p class="small">The host injects <code>window.REPORT_DATA = { parameters, rows, meta }</code>. The JS <b>never fetches</b> and never touches the DB.</p></div>
+        <div class="card"><h3>Versioned</h3><p class="small">Report definitions live as HTML/JS/MD in the repo — reviewable diffs, no server deploy.</p></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Same data, new renderer</h3>
+        <p class="small">The existing .NET data layer produces the rows (already filtered); the host replaces a <code>&lt;!-- REPORT_DATA --&gt;</code> marker in the template with the serialized data and serves a fully self-contained page.</p>
+      </div>
+    </section>
+
+    <!-- 5 PLUGIN STRUCTURE -->
+    <section class="slide">
+      <span class="tag">04 · Plugin structure</span>
+      <h2>The Report Migrator plugin (build-time)</h2>
+      <div class="grid two">
+        <div>
+          <div class="card"><h3>Skill — <code>report-forge</code></h3><p class="small">Orchestrates <b>research → review → migrate</b>; holds the generic, host-agnostic conventions.</p></div>
+          <div class="card" style="margin-top:12px"><h3>Agents</h3><ul class="small">
+            <li><b>report-researcher</b> (1a) — report → thought file</li>
+            <li><b>report-migrator</b> (1b) — thought file → HTML/JS/MD</li>
+            <li><b>schema-mapper</b> (1c) — DB → schema &amp; PHI JSON</li>
+          </ul></div>
+        </div>
+        <div class="tree">.claude/
+├── skills/report-forge/
+│   ├── <span class="f">SKILL.md</span>          <span class="c"># orchestrator</span>
+│   └── references/
+│       ├── thought-file-template.md
+│       ├── html-report-template.md
+│       └── schema-mapping-example.md
+├── agents/
+│   ├── <span class="f">report-researcher.md</span>
+│   ├── <span class="f">report-migrator.md</span>
+│   └── <span class="f">schema-mapper.md</span>
+└── commands/
+    ├── report-research.md
+    ├── report-migrate.md
+    └── report-schema.md</div>
+      </div>
+      <p class="small muted" style="margin-top:12px">Generic &amp; reusable across projects — anything app-specific lives in the app's shared context (<code>ReportThoughts/_CONTEXT.md</code>).</p>
+    </section>
+
+    <!-- 6 OUTPUT FOLDER -->
+    <section class="slide">
+      <span class="tag">05 · Output</span>
+      <h2>Artifacts the plugin produces</h2>
+      <div class="tree"><span class="c"># committed to the repo, consumed at runtime</span>
+ReportThoughts/
+├── <span class="f">_CONTEXT.md</span>                        <span class="c"># app stack, file map, host-filter model, registry</span>
+├── patient.thought.md                  <span class="c"># reviewable business-logic analysis</span>
+├── transplant_event.thought.md
+└── patient_clinical_summary.thought.md
+
+HTMLReportsFolder/
+├── <span class="f">patient_clinical_summary.html</span>       <span class="c"># self-contained template + &lt;!-- REPORT_DATA --&gt;</span>
+├── patient_clinical_summary.js         <span class="c"># renders from window.REPORT_DATA (no fetch)</span>
+└── patient_clinical_summary.md         <span class="c"># human docs + data contract</span>
+
+DataSchemaMapping/
+├── schema-mapping.json                 <span class="c"># tables/columns/relationships</span>
+└── phi-markers.json                    <span class="c"># PHI columns for anonymizer</span></div>
+      <div class="grid three" style="margin-top:14px">
+        <div class="card"><h3>Thought file</h3><p class="small">What the report does — reviewed before any code is generated.</p></div>
+        <div class="card"><h3>HTML set</h3><p class="small">The runnable report: template + renderer + docs.</p></div>
+        <div class="card"><h3>Schema map</h3><p class="small">DB context for Phase 2 prompt decoding &amp; PHI safety.</p></div>
+      </div>
+    </section>
+
+    <!-- 7 MIGRATION FLOW -->
+    <section class="slide">
+      <span class="tag">06 · Migration pipeline</span>
+      <h2>How an old report becomes an HTML report</h2>
+      <div class="flow">
+        <div class="step"><span class="n">SOURCE</span><b>Report bundle</b><span class="small muted">.rdl + host code (query, view)</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><span class="n">1a · RESEARCH</span><b>report-researcher</b><span class="small muted">→ <code>*.thought.md</code></span></div>
+        <div class="arrow">→</div>
+        <div class="step review"><span class="n">CHECKPOINT</span><b>Human review</b><span class="small muted">approve the logic</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><span class="n">1b · MIGRATE</span><b>report-migrator</b><span class="small muted">→ <code>.html / .js / .md</code></span></div>
+      </div>
+      <div class="flow" style="margin-top:14px">
+        <div class="step"><span class="n">COMMIT</span><b>Artifacts in repo</b><span class="small muted">version-controlled</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><span class="n">RUNTIME</span><b>Host injects data</b><span class="small muted">.NET queries DB → fills <code>REPORT_DATA</code></span></div>
+        <div class="arrow">→</div>
+        <div class="step"><span class="n">BROWSER</span><b>Template renders</b><span class="small muted">grouping, formatting, filters</span></div>
+      </div>
+      <p class="small muted" style="margin-top:14px">Two sub-phases are separated on purpose: a developer verifies the <b>thought file</b> before any HTML is generated — a misread rule is cheap to fix there, expensive to debug in generated code.</p>
+    </section>
+
+    <!-- 8 CHANGE vs SAME -->
+    <section class="slide">
+      <span class="tag">07 · Impact on the app</span>
+      <h2>What changes &amp; what stays the same</h2>
+      <div class="grid two">
+        <div class="card good">
+          <h3>✔ Stays as-is</h3>
+          <ul class="small">
+            <li>The <b>database</b> &amp; schema.</li>
+            <li>The <b>data-access layer</b> (EF Core queries / data services).</li>
+            <li><b>Business logic &amp; filtering</b> — still applied in .NET.</li>
+            <li><b>Controllers, routing, authentication</b>.</li>
+            <li>Report <b>parameters</b> and their meaning.</li>
+          </ul>
+        </div>
+        <div class="card warn">
+          <h3>↻ Changes</h3>
+          <ul class="small">
+            <li><b>Rendering engine:</b> SSRS RDL + ReportViewer PDF → <b>HTML template</b> populated with <code>REPORT_DATA</code>.</li>
+            <li>A <b>new controller action</b> serves the populated HTML (e.g. <code>HtmlReport</code>).</li>
+            <li>Filters become <b>interactive HTML controls</b> that round-trip via the query string.</li>
+            <li><b>No SSRS server / ReportViewer</b> dependency on the HTML path.</li>
+            <li>Report definitions live as <b>HTML/JS in git</b>, not <code>.rdl</code> on a server.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="small muted" style="margin-top:14px">Net effect: the data pipeline is untouched; only the <b>presentation layer</b> is swapped — proving SSRS can be replaced without disrupting the app.</p>
+    </section>
+
+    <!-- 9 PHASE 2 · RUNTIME ARCHITECTURE -->
+    <section class="slide">
+      <span class="tag">08 · Phase 2 · Runtime</span>
+      <h2>AI-driven reporting at runtime</h2>
+      <p class="lead">The migrated HTML reports come alive: users ask questions in plain English and get filtered reports with an AI summary — powered by a local LLM.</p>
+      <div class="tree">Browser
+  │  "Give me patient data for Austin General"
+  ▼
+.NET MVC app        (:5282)   UI · auth · data access · report serving
+  │  POST /decode-prompt            POST /summarize
+  ▼
+Python brain        (:8080)   FastAPI — NL → QuerySpec, narrative
+  │                                └──▶ Claude API  (anonymized fallback)
+  ▼
+Ollama              (:11434)  qwen2.5:3b — local LLM
+
+.NET also ──▶ SQLite (EF Core)             live data
+          ──▶ HTMLReportsFolder/           template + window.REPORT_DATA
+          ──▶ RdlRenderService (:5250)     real .rdl → PDF</div>
+    </section>
+
+    <!-- 10 NL QUERY FLOW -->
+    <section class="slide">
+      <span class="tag">09 · Natural-language query</span>
+      <h2>From a plain-English question to a filtered report</h2>
+      <div class="flow">
+        <div class="step"><span class="n">ASK</span><b>User question</b><span class="small muted">plain English</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><span class="n">DECODE</span><b>Brain + LLM</b><span class="small muted">/decode-prompt → QuerySpec</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><span class="n">FILTER</span><b>.NET + EF Core</b><span class="small muted">table-qualified WHERE → SQLite</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><span class="n">SUMMARIZE</span><b>Brain + LLM</b><span class="small muted">/summarize → narrative + chart</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><span class="n">RENDER</span><b>HTML template</b><span class="small muted">rows + summary</span></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Example</h3>
+        <p class="small"><i>"Give me patient data for Austin General"</i> → the brain uses the schema map to know <b>Austin General</b> is a <b>facility</b>, decodes <code>report=patient</code> with filter <code>Facilities.Name contains "Austin General"</code>, and the report shows the <b>3</b> patients there (not all 8), with an AI narrative.</p>
+      </div>
+      <p class="small muted" style="margin-top:10px">The LLM replaces the SSRS parameter form — users type questions instead of navigating dropdowns.</p>
+    </section>
+
+    <!-- 11 PYTHON BRAIN -->
+    <section class="slide">
+      <span class="tag">10 · Python brain</span>
+      <h2>The brain service (FastAPI)</h2>
+      <div class="grid two">
+        <div class="card"><h3>Endpoints</h3><ul class="small">
+          <li><code>POST /decode-prompt</code> — NL question → report key + table-qualified filters</li>
+          <li><code>POST /summarize</code> — rows → narrative (+ optional chart)</li>
+          <li><code>GET /health</code> — readiness: reports, schema tables, PHI markers</li>
+        </ul></div>
+        <div class="card"><h3>Loaded at startup</h3><ul class="small">
+          <li><code>ReportThoughts/*.thought.md</code> — report catalog</li>
+          <li><code>schema-mapping.json</code> — tables + navigation for cross-table filters</li>
+          <li><code>phi-markers.json</code> — PHI columns + strategies</li>
+        </ul></div>
+      </div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="card good"><h3>Local LLM (primary)</h3><p class="small"><b>Ollama · qwen2.5:3b</b> — runs on-device, CPU-only; does both decode and summarize.</p></div>
+        <div class="card"><h3>Cloud fallback</h3><p class="small"><b>Anthropic Claude API</b> — only if Ollama fails, and only on <b>anonymized</b> data.</p></div>
+      </div>
+    </section>
+
+    <!-- 12 PHI SAFETY -->
+    <section class="slide">
+      <span class="tag">11 · PHI safety</span>
+      <h2>PHI never leaves the server in the clear</h2>
+      <div class="flow">
+        <div class="step"><span class="n">ROWS</span><b>Real data</b><span class="small muted">names, DOB, MRN…</span></div>
+        <div class="arrow">→</div>
+        <div class="step review"><span class="n">ANONYMIZE</span><b>phi-markers.json</b><span class="small muted">pseudonymize / age-range / redact</span></div>
+        <div class="arrow">→</div>
+        <div class="step"><span class="n">LLM</span><b>Ollama / Claude</b><span class="small muted">sees only pseudonyms</span></div>
+        <div class="arrow">→</div>
+        <div class="step review"><span class="n">RE-MAP</span><b>Local</b><span class="small muted">pseudonyms → real names</span></div>
+      </div>
+      <div class="grid two" style="margin-top:16px">
+        <div class="card good"><h3>Guarantees</h3><ul class="small">
+          <li>Anonymize rows <b>and the question</b> before any LLM call; re-map locally after.</li>
+          <li>The brain refuses to start without its PHI markers.</li>
+        </ul></div>
+        <div class="card warn"><h3>Guardrails</h3><ul class="small">
+          <li>Query spec is <b>signed + encrypted</b>; only allowlisted columns are filterable.</li>
+          <li>Deterministic post-decode fixes; off-topic / destructive questions <b>fail closed</b>; honest errors (no fabricated summary).</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <!-- 13 RENDER PATHS -->
+    <section class="slide">
+      <span class="tag">12 · Rendering</span>
+      <h2>Two runtime render paths, one data layer</h2>
+      <div class="grid two">
+        <div class="card good"><h3>HTML template — SSRS replacement</h3><ul class="small">
+          <li>Host injects <code>window.REPORT_DATA</code>: rows + applied filters + <b>AI narrative</b> + optional chart.</li>
+          <li>Web-native, interactive, self-contained.</li>
+          <li><code>/Reports/HtmlReports</code></li>
+        </ul></div>
+        <div class="card"><h3>Real SSRS .rdl → PDF</h3><ul class="small">
+          <li>Rendered by <b>RdlRenderService</b> (ReportViewer) for legacy parity.</li>
+          <li>Shown in an iframe; <b>Download PDF</b> on every report.</li>
+          <li><code>/Reports/Index</code></li>
+        </ul></div>
+      </div>
+      <p class="small muted" style="margin-top:14px">The same EF Core data + filters feed both paths — proving the HTML report is a drop-in replacement for SSRS.</p>
+    </section>
+
+    <!-- 14 RUN THE POC -->
+    <section class="slide">
+      <span class="tag">13 · Run the PoC</span>
+      <h2>Four processes</h2>
+      <div class="tree">1) Ollama          ollama serve                                    :11434
+2) Python brain    uvicorn ai_report_forge.api:app --port 8080     :8080
+3) RDL service     dotnet run   (DotNetApp/RdlRenderService)        :5250
+4) .NET web app    dotnet run   (DotNetApp/PatientReports)          :5282
+
+Open  ▶  http://localhost:5282/Reports/HtmlReports</div>
+      <div class="grid three" style="margin-top:14px">
+        <div class="card"><h3>Local &amp; private</h3><p class="small">LLM runs on-device; SQLite auto-seeds on startup.</p></div>
+        <div class="card"><h3>No SSRS server</h3><p class="small">HTML path needs no report server; the RDL path is a self-hosted side-service.</p></div>
+        <div class="card"><h3>Fully in git</h3><p class="small">Reports, schema, thought files — all version-controlled.</p></div>
+      </div>
+    </section>
+
+  </div>
+
+  <nav class="nav">
+    <button id="prev" aria-label="Previous slide">◀ Prev</button>
+    <span class="counter" id="counter">1 / 14</span>
+    <button id="next" aria-label="Next slide">Next ▶</button>
+  </nav>
+</div>
+<div class="hint">← → arrows to navigate</div>
+
+<script>
+(function(){
+  "use strict";
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var i = 0;
+  var bar = document.getElementById("bar");
+  var counter = document.getElementById("counter");
+  var prev = document.getElementById("prev");
+  var next = document.getElementById("next");
+
+  function render(){
+    slides.forEach(function(s,idx){ s.classList.toggle("active", idx===i); });
+    counter.textContent = (i+1) + " / " + slides.length;
+    bar.style.width = ((i+1)/slides.length*100) + "%";
+    prev.disabled = (i===0);
+    next.disabled = (i===slides.length-1);
+    var active = document.querySelector(".slide.active");
+    if (active) active.scrollTop = 0;
+  }
+  function go(n){ i = Math.max(0, Math.min(slides.length-1, n)); render(); }
+
+  prev.addEventListener("click", function(){ go(i-1); });
+  next.addEventListener("click", function(){ go(i+1); });
+  document.addEventListener("keydown", function(e){
+    if(e.key==="ArrowRight" || e.key==="PageDown" || e.key===" "){ e.preventDefault(); go(i+1); }
+    else if(e.key==="ArrowLeft" || e.key==="PageUp"){ e.preventDefault(); go(i-1); }
+    else if(e.key==="Home"){ go(0); }
+    else if(e.key==="End"){ go(slides.length-1); }
+  });
+  render();
+})();
+</script>
+</body>
+</html>
