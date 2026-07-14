@@ -39,6 +39,8 @@ cd ai-report-forge && python -m pytest tests/ -v
   ("ollama"|"claude"|"claude_fallback"); the UI shows a provenance banner per source
 - The Claude API key lives in `ai-report-forge/.env` (`ANTHROPIC_API_KEY`), read at
   brain startup — restart the brain after changing it. The .NET app never holds the key
+- `FORCE_DECODE_FALLBACK=true` in the brain's `.env` makes every local decode fail so
+  the Claude fallback fires deterministically — demo/testing only
 - NLP filters are AND-only (no OR support)
 - Filter values are always strings (Pydantic coerces non-strings)
 - Data rows are anonymized before any summarization LLM call (Ollama and Claude);
