@@ -329,8 +329,8 @@
     if (!el) return;
     var from = params.fromDate ? formatDate(params.fromDate) : "-";
     var to = params.toDate ? formatDate(params.toDate) : "-";
-    var minAge = params.minAge != null ? params.minAge : "0";
-    var maxAge = params.maxAge != null ? params.maxAge : "120";
+    var minAge = params.minAge != null ? params.minAge : "18";
+    var maxAge = params.maxAge != null ? params.maxAge : "70";
     el.textContent = "Filters - Visit dates: " + from + " to " + to +
       " | Age: " + minAge + " to " + maxAge +
       " | Patient status: All";
