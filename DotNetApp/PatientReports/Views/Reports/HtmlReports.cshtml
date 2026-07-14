@@ -6,7 +6,7 @@
 <h2 class="mb-1">AI-Powered Reports</h2>
 <p class="text-muted">Ask a question in plain English, or select a report from the dropdown below.</p>
 
-<form method="get" asp-action="AskReport" class="row g-2 align-items-end mb-3">
+<form id="askForm" method="get" asp-action="AskReport" class="row g-2 align-items-end mb-3">
     <div class="col-md-6">
         <label for="question" class="form-label fw-semibold">Ask a question</label>
         <input type="text" id="question" name="question" class="form-control"
@@ -14,7 +14,7 @@
                value="@Model.Question" />
     </div>
     <div class="col-auto">
-        <button type="submit" class="btn btn-success">Ask</button>
+        <button type="submit" class="btn btn-success" id="askBtn">Ask</button>
     </div>
 </form>
 
@@ -100,4 +100,31 @@ else
                 src="@Url.Action("HtmlReport", "Reports", new { report = Model.SelectedReport, question = Model.Question, spec = Model.QuerySpecB64 })"
                 style="width:100%; height:80vh; border:0;"></iframe>
     </div>
+}
+
+<!-- Full-screen spinner shown while the AI decodes the question (brain call can take several seconds). -->
+<div id="askSpinner"
+     style="display:none; position:fixed; inset:0; background:rgba(255,255,255,.75); z-index:1080;
+            align-items:center; justify-content:center; flex-direction:column;">
+    <div class="spinner-border text-success" role="status" style="width:3rem; height:3rem;">
+        <span class="visually-hidden">Loading…</span>
+    </div>
+    <div class="mt-3 fw-semibold text-secondary">Generating report from your question…</div>
+</div>
+
+@section Scripts {
+<script>
+    (function () {
+        var form = document.getElementById("askForm");
+        if (!form) return;
+        form.addEventListener("submit", function () {
+            var q = document.getElementById("question");
+            if (!q || !q.value.trim()) return;           // nothing to ask — no spinner
+            var sp = document.getElementById("askSpinner");
+            if (sp) sp.style.display = "flex";
+            var btn = document.getElementById("askBtn");
+            if (btn) { btn.disabled = true; btn.textContent = "Asking…"; }
+        });
+    })();
+</script>
 }

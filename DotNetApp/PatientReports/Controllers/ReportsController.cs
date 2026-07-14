@@ -117,8 +117,8 @@ public class ReportsController : Controller
             SelectedReport = report,
             FromDate = fromDate ?? "2026-01-01",
             ToDate = toDate ?? "2026-12-31",
-            MinAge = minAge,
-            MaxAge = maxAge,
+            MinAge = minAge ?? "18",
+            MaxAge = maxAge ?? "70",
         });
     }
 
@@ -243,8 +243,8 @@ public class ReportsController : Controller
                 key = "patient_clinical_summary";
                 var from = DateTime.TryParse(fromDate, out var f) ? f : new DateTime(2026, 1, 1);
                 var to = DateTime.TryParse(toDate, out var t) ? t : new DateTime(2026, 12, 31);
-                var minA = int.TryParse(minAge, out var mn) ? mn : 0;
-                var maxA = int.TryParse(maxAge, out var mx) ? mx : 120;
+                var minA = int.TryParse(minAge, out var mn) ? mn : 18;
+                var maxA = int.TryParse(maxAge, out var mx) ? mx : 70;
                 var clinicalRows = await _dataService.GetClinicalFlatRowsAsync(from, to, minA, maxA, "All");
                 // Apply brain-decoded filters (e.g. gender, facility) — this
                 // report is built from denormalized rows, so filtering happens
@@ -366,6 +366,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // hub page.
     public async Task<IActionResult> RdlView(string report, string? fromDate, string? toDate, string? minAge, string? maxAge)
     {
+      try
+      {
         byte[] pdf;
         switch (report)
         {
@@ -386,8 +388,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // and echo the same filters into the report via its parameters.
                 var from = DateTime.TryParse(fromDate, out var f) ? f : new DateTime(2026, 1, 1);
                 var to = DateTime.TryParse(toDate, out var t) ? t : new DateTime(2026, 12, 31);
-                var minA = int.TryParse(minAge, out var mn) ? mn : 0;
-                var maxA = int.TryParse(maxAge, out var mx) ? mx : 120;
+                var minA = int.TryParse(minAge, out var mn) ? mn : 18;
+                var maxA = int.TryParse(maxAge, out var mx) ? mx : 70;
 
                 var rows = await _dataService.GetClinicalFlatRowsAsync(from, to, minA, maxA, "All");
                 var parameters = new Dictionary<string, string>
@@ -406,6 +408,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         return File(pdf, "application/pdf");
+      }
+      catch (Exception ex)
+      {
+        _logger.LogError(ex, "RDL render failed for report {Report}", report);
+        var svc = _config["RdlRenderService:BaseUrl"] ?? "http://localhost:5250/";
+        var detail = System.Net.WebUtility.HtmlEncode(ex.Message);
+        var msg = $@"<!doctype html><html><head><meta charset=""utf-8""></head>
+<body style=""font-family:'Segoe UI',Arial,sans-serif;padding:24px;color:#333;line-height:1.5"">
+  <h3 style=""color:#b02a37;margin:0 0 .5rem"">SSRS report could not be rendered</h3>
+  <p>The RDL rendering service didn't respond. The <b>RdlRenderService</b> (.NET Framework 4.8)
+     must be running for the SSRS / PDF report path.</p>
+  <p><b>Start it:</b> <code>dotnet run --project DotNetApp/RdlRenderService</code>
+     &nbsp;(expected at <code>{svc}</code>)</p>
+  <p style=""color:#999;font-size:.85rem"">Detail: {detail}</p>
+</body></html>";
+        return Content(msg, "text/html");
+      }
     }
 
     // Kept for backward compatibility / direct links; both render the shared partials.
