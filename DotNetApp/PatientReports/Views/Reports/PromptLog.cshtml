@@ -57,7 +57,54 @@ else if (Model.Entries.Count == 0)
     </div>
 }
 
-@foreach (var e in Model.Entries)
+@{
+    // Group entries into "asks": entries are newest-first, and a decode entry
+    // is chronologically the first event of an ask — so it closes a group.
+    // Each group = [summarize entries...] + their decode. Only the newest
+    // group renders expanded; older asks collapse into accordion items.
+    var groups = new List<List<PatientReports.Models.PromptLogEntry>>();
+    var current = new List<PatientReports.Models.PromptLogEntry>();
+    foreach (var entry in Model.Entries)
+    {
+        current.Add(entry);
+        if (entry.Kind == "decode")
+        {
+            groups.Add(current);
+            current = new List<PatientReports.Models.PromptLogEntry>();
+        }
+    }
+    if (current.Count > 0) { groups.Add(current); }
+}
+
+<div class="accordion" id="promptLogAccordion">
+@for (var g = 0; g < groups.Count; g++)
+{
+    var group = groups[g];
+    var decode = group.LastOrDefault(x => x.Kind == "decode");
+    var headQuestion = decode?.SentQuestion
+        ?? group.Select(x => x.OriginalQuestion).FirstOrDefault(q => !string.IsNullOrEmpty(q))
+        ?? "(question unavailable)";
+    var headButton = decode == null ? null : (decode.Provider == "claude" ? "Ask Claude" : "Ask Local AI");
+    var headTime = LocalTime(group[0].Timestamp);
+    var expanded = g == 0;
+
+    <div class="accordion-item mb-2 border rounded">
+        <h2 class="accordion-header">
+            <button class="accordion-button @(expanded ? "" : "collapsed") py-2" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#askGroup@(g)">
+                <span class="me-2 text-truncate" style="max-width: 50%">&ldquo;@headQuestion&rdquo;</span>
+                @if (headButton != null)
+                {
+                    <span class="badge @(headButton == "Ask Claude" ? "bg-warning text-dark" : "bg-secondary") me-2">@headButton</span>
+                }
+                <span class="badge bg-light text-dark border me-2">@group.Count call@(group.Count == 1 ? "" : "s")</span>
+                <span class="text-muted small">@headTime</span>
+            </button>
+        </h2>
+        <div id="askGroup@(g)" class="accordion-collapse collapse @(expanded ? "show" : "")"
+             data-bs-parent="#promptLogAccordion">
+            <div class="accordion-body p-2">
+@foreach (var e in group)
 {
     var isDecode = e.Kind == "decode";
     var modelLabel = isDecode
@@ -65,10 +112,46 @@ else if (Model.Entries.Count == 0)
         : (e.Model == "claude" ? "Claude" : "Local LLM");
     var isCloud = modelLabel.StartsWith("Claude");
 
-    <div class="card mb-3">
-        <div class="card-header d-flex align-items-center gap-2 py-2">
+    // Human-readable routing chain for decode entries, e.g.
+    // "Local LLM ✗ → Claude (fallback) ✓" — shows exactly what happened.
+    var routing = new List<(string Label, bool Ok, bool Cloud)>();
+    if (isDecode)
+    {
+        var succeeded = e.Succeeded ?? true;
+        if (e.Provider == "claude")
+        {
+            routing.Add(("Claude — direct", succeeded, true));
+        }
+        else if (e.Source == "claude_fallback")
+        {
+            routing.Add(("Local LLM", false, false));
+            routing.Add(("Claude — fallback", true, true));
+        }
+        else if (succeeded)
+        {
+            routing.Add(("Local LLM", true, false));
+        }
+        else if (e.FallbackAttempted == true)
+        {
+            routing.Add(("Local LLM", false, false));
+            routing.Add(("Claude — fallback", false, true));
+        }
+        else
+        {
+            routing.Add(("Local LLM", false, false));
+        }
+    }
+    var noFallbackNote = isDecode && e.Provider != "claude" && (e.Succeeded ?? true) == false
+                         && e.FallbackAttempted != true;
+
+    <div class="card mb-2">
+        <div class="card-header d-flex align-items-center flex-wrap gap-2 py-2">
             <span class="badge @(isDecode ? "bg-primary" : "bg-success")">@(isDecode ? "Decode" : "Summarize")</span>
             <span class="badge @(isCloud ? "bg-warning text-dark" : "bg-secondary")">@modelLabel</span>
+            @if (isDecode && !string.IsNullOrEmpty(e.Provider))
+            {
+                <span class="text-muted small">via <strong>@(e.Provider == "claude" ? "Ask Claude" : "Ask Local AI")</strong></span>
+            }
             @if (isDecode && !string.IsNullOrEmpty(e.Report))
             {
                 <span class="text-muted small">report: <code>@e.Report</code></span>
@@ -112,3 +195,8 @@ else if (Model.Entries.Count == 0)
         </div>
     </div>
 }
+            </div>
+        </div>
+    </div>
+}
+</div>
