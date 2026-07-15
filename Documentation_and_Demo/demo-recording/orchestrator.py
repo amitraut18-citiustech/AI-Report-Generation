@@ -21,8 +21,18 @@ from pathlib import Path
 
 import edge_tts
 
-ROOT = Path(__file__).resolve().parents[1]
+def _find_root(start: Path) -> Path:
+    """Walk up to the repo root (robust to where this folder lives)."""
+    d = start
+    for _ in range(6):
+        if (d / "HTMLReportsFolder").is_dir() and (d / "DotNetApp").is_dir():
+            return d
+        d = d.parent
+    return start
+
+
 HERE = Path(__file__).parent
+ROOT = _find_root(HERE)
 SCREENSHOTS = HERE / "screenshots"
 AUDIO = HERE / "audio"
 OUTPUT = HERE / "output"
@@ -127,7 +137,7 @@ def clip_duration(ffprobe: str, path: Path) -> float:
     return float(out.strip())
 
 
-def stitch(ffmpeg: str, steps: list[dict]) -> Path:
+def stitch(ffmpeg: str, steps: list[dict], name: str = "demo") -> Path:
     OUTPUT.mkdir(exist_ok=True)
     ffprobe = shutil.which("ffprobe") or str(Path(ffmpeg).parent / "ffprobe")
 
@@ -144,8 +154,9 @@ def stitch(ffmpeg: str, steps: list[dict]) -> Path:
              "-loop", "1", "-i", str(img), "-i", str(aud),
              "-t", f"{dur:.2f}",
              "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
-             "-vf", "scale=1280:800",
-             "-c:a", "aac", "-af", "apad",           # pad audio to segment length (bounded by -t)
+             "-crf", "18", "-preset", "medium",       # crisp text (2x screenshots downscaled with lanczos)
+             "-vf", "scale=1920:1200:flags=lanczos",
+             "-c:a", "aac", "-af", "apad",            # pad audio to segment length (bounded by -t)
              seg],
             check=True,
         )
@@ -154,7 +165,7 @@ def stitch(ffmpeg: str, steps: list[dict]) -> Path:
 
     concat_file = OUTPUT / "concat.txt"
     concat_file.write_text("".join(f"file '{s.name}'\n" for s in segments), encoding="ascii")
-    final = OUTPUT / "demo.mp4"
+    final = OUTPUT / f"{name}.mp4"
     subprocess.run(
         [ffmpeg, "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
          "-i", str(concat_file), "-c", "copy", str(final)],
@@ -170,6 +181,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-capture", action="store_true")
     parser.add_argument("--skip-claude-check", action="store_true")
+    parser.add_argument("--name", default="demo", help="output file name (without .mp4)")
     args = parser.parse_args()
 
     ffmpeg = ffmpeg_or_die()
@@ -195,7 +207,7 @@ def main() -> None:
         steps.sort(key=lambda s: s["step"])
 
         generate_tts(steps)
-        final = stitch(ffmpeg, steps)
+        final = stitch(ffmpeg, steps, args.name)
 
         ffprobe = shutil.which("ffprobe") or str(Path(ffmpeg).parent / "ffprobe")
         size_mb = final.stat().st_size / 1e6

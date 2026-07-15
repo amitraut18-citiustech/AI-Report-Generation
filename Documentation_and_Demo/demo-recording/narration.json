@@ -2,13 +2,13 @@
   {
     "step": 1,
     "filename": "step-01",
-    "narration": "This is AI Report Forge. Reporting today means legacy SSRS — verbose report definition XML like this, that only developers can author, and that needs a report server to render. Every new or changed report is an IT ticket.",
+    "narration": "This is AI Report Forge. Reporting today means legacy SSRS — report definitions only developers can author, on a report server. Phase one replaces that with a Claude Code plugin: one skill orchestrating three agents — a researcher, a migrator, and a schema mapper — with a human review checkpoint before any code is generated.",
     "pause_after": 0.6
   },
   {
     "step": 2,
     "filename": "step-02",
-    "narration": "Phase one: a Claude Code plugin reads the legacy report and produces a thought file — a human-readable analysis of its data, business logic, parameters and layout. A developer reviews and approves this before any code is generated. That is the human checkpoint.",
+    "narration": "The plugin turns one legacy report into three version-controlled artifacts. The original SSRS definition — an R D L file. A thought file — a human-reviewed analysis of the report's data, business logic, parameters and layout. And a self-contained HTML template. No report server — just files in git.",
     "pause_after": 0.7
   },
   {
