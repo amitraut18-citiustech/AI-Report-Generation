@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     # keep the rendering pipeline intact but don't ask the LLM for chart specs.
     enable_charts: bool = False
 
+    # DEMO/TESTING ONLY: make every local decode report failure so the Claude
+    # fallback fires deterministically (the local model normally fails too
+    # rarely to demo on cue). Never enable outside demos.
+    force_decode_fallback: bool = False
+
     anthropic_api_key: str = ""
     claude_model: str = "claude-opus-4-8"
     claude_max_tokens: int = 4096

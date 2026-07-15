@@ -27,3 +27,6 @@ appsettings.Development.json
 ## OS files
 .DS_Store
 Thumbs.db
+
+# SQLite database — auto-created and seeded on app startup
+PatientReports/db/

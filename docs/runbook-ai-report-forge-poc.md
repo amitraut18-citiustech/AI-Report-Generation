@@ -150,8 +150,11 @@ taskkill /PID <pid> /F
 
 1. Ask a question with **Ask Local AI** → grey *Local LLM* banner.
 2. Ask the same question with **Ask Claude** → amber *Claude* banner (question decoded by the Claude API; requires `ANTHROPIC_API_KEY`).
-3. Stop Ollama, then use **Ask Local AI** again → amber *Claude (fallback)* banner: *"The local LLM could not interpret your question, so it was answered by Claude."*
-4. Restart Ollama.
+3. Trigger the automatic fallback → amber *Claude (fallback)* banner: *"The local LLM could not interpret your question, so it was answered by Claude."* Three ways, most to least deterministic:
+   - **Demo knob (guaranteed, first click):** set `FORCE_DECODE_FALLBACK=true` in `ai-report-forge/.env` and restart the brain — every local ask now falls back. Revert after the demo.
+   - **Stop Ollama** — any local ask fails instantly and falls back.
+   - **Colloquial prompt (organic but flaky):** "which sheet lists the folks who got cells from a donor other than themselves" — fails on the 3B model *sometimes*; may need several tries.
+4. Restore normal mode (unset the knob / restart Ollama).
 
 **Key message:** Cloud usage is a deliberate choice or a visible fallback — never silent. If Claude is unconfigured or errors (bad key, no credits), the exact reason is shown in the error banner.
 

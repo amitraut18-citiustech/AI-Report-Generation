@@ -1,0 +1,110 @@
+[
+  {
+    "step": 1,
+    "filename": "step-01",
+    "narration": "This is AI Report Forge. Reporting today means legacy SSRS — verbose report definition XML like this, that only developers can author, and that needs a report server to render. Every new or changed report is an IT ticket.",
+    "pause_after": 0.6
+  },
+  {
+    "step": 2,
+    "filename": "step-02",
+    "narration": "Phase one: a Claude Code plugin reads the legacy report and produces a thought file — a human-readable analysis of its data, business logic, parameters and layout. A developer reviews and approves this before any code is generated. That is the human checkpoint.",
+    "pause_after": 0.7
+  },
+  {
+    "step": 3,
+    "filename": "step-03",
+    "narration": "From the approved thought file, the plugin generates a self-contained HTML report template. It renders from a single injected data object — no report server, no database access, just a versioned file in git.",
+    "pause_after": 0.7
+  },
+  {
+    "step": 4,
+    "filename": "step-04",
+    "narration": "Phase two brings those reports to life at runtime. This is the application — a natural language reporting tool built on the migrated templates.",
+    "pause_after": 0.5
+  },
+  {
+    "step": 5,
+    "filename": "step-05",
+    "narration": "We type a natural language question — no SQL, no report parameters, just plain English.",
+    "pause_after": 0.5
+  },
+  {
+    "step": 6,
+    "filename": "step-06",
+    "narration": "The local model decoded the question into structured filters — you can see them as badges. Notice the grey banner: all processing happened on-premise. No data left this machine.",
+    "pause_after": 0.6
+  },
+  {
+    "step": 7,
+    "filename": "step-07",
+    "narration": "An AI-generated narrative summarizes the filtered results — three patients at Austin General, with the key patterns highlighted.",
+    "pause_after": 0.6
+  },
+  {
+    "step": 8,
+    "filename": "step-08",
+    "narration": "Now we ask using Claude. The amber banner shows this was decoded by the cloud API. The application supports both local and cloud models, with full transparency about which one answered.",
+    "pause_after": 0.6
+  },
+  {
+    "step": 9,
+    "filename": "step-09",
+    "narration": "This phrasing is too colloquial for the small local model. It failed — and the system automatically fell back to Claude, which decoded it correctly. The banner says so explicitly: cloud usage is never silent.",
+    "pause_after": 0.6
+  },
+  {
+    "step": 9,
+    "filename": "step-09-alt",
+    "narration": "Even this colloquial phrasing was handled — the local model decoded it into the correct donor-type filter. Had it failed, the system would have fallen back to Claude automatically, with the banner disclosing it.",
+    "pause_after": 0.6
+  },
+  {
+    "step": 10,
+    "filename": "step-10",
+    "narration": "Here is the security model at work. M R N is a protected field — the filter is blocked, and rather than showing more data than was asked for, the report fails closed: zero rows, with an explanation.",
+    "pause_after": 0.6
+  },
+  {
+    "step": 11,
+    "filename": "step-11",
+    "narration": "The Prompt Log shows exactly what was sent to each model. Every question is a collapsible group, and the routing chain shows what happened — including the local-model failure and Claude fallback we just saw.",
+    "pause_after": 0.6
+  },
+  {
+    "step": 12,
+    "filename": "step-12",
+    "narration": "This is the key privacy feature. Real patient data on the left was never sent to any model. The L L M only saw the anonymized version on the right — pseudonyms, age ranges, and redacted identifiers. The same protection applies to the local model and to Claude.",
+    "pause_after": 0.8
+  },
+  {
+    "step": 13,
+    "filename": "step-13",
+    "narration": "Reports can also be accessed directly from the dropdown, without a natural language question.",
+    "pause_after": 0.4
+  },
+  {
+    "step": 14,
+    "filename": "step-14",
+    "narration": "The transplant event report shows donor types, visit dates, and inpatient status across all patients.",
+    "pause_after": 0.5
+  },
+  {
+    "step": 15,
+    "filename": "step-15",
+    "narration": "The clinical summary is the most complex migrated report — it groups data by facility, computes B M I and risk scores, and flags abnormal lab results.",
+    "pause_after": 0.6
+  },
+  {
+    "step": 16,
+    "filename": "step-16",
+    "narration": "For comparison, the original SSRS reports are still available side by side.",
+    "pause_after": 0.4
+  },
+  {
+    "step": 17,
+    "filename": "step-17",
+    "narration": "The classic view renders the original R D L definition — same data, legacy format. Same numbers, new engine, no report server. That is AI Report Forge.",
+    "pause_after": 1.0
+  }
+]

@@ -130,7 +130,13 @@ def decode_prompt(question: str, ctx: AppContext, provider: str = "local") -> di
         _log_decode(question, provider, result)
         return result
 
-    result = _decode_with_ollama(question, system)
+    if settings.force_decode_fallback:
+        # Demo/testing knob (FORCE_DECODE_FALLBACK in .env): skip the local
+        # model and pretend it failed, so the fallback path runs on cue.
+        log.warning("FORCE_DECODE_FALLBACK is enabled — skipping local decode")
+        result = _unknown_response("Local decode skipped (FORCE_DECODE_FALLBACK)")
+    else:
+        result = _decode_with_ollama(question, system)
 
     # Local decode failed or was too uncertain — retry on Claude when configured.
     fallback_attempted = False
